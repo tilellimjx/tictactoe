@@ -1,0 +1,103 @@
+name: Run Agents
+
+on:
+  # Trigger manually from the GitHub Actions UI (Actions tab → Run workflow)
+  workflow_dispatch:
+    inputs:
+      agent:
+        description: "Which agent to run"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - requirements
+          - cross_review
+          - coding
+          - unit_testing
+
+  # Also run automatically on pushes to master (optional — remove if you prefer manual only)
+  push:
+    branches: [master]
+    paths:
+      - "requirements_agent*.py"
+      - "cross_review_agents.py"
+      - "coding_agent.py"
+      - "unit_testing_agent.py"
+      - "agent_utils.py"
+
+jobs:
+  run-agents:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to commit generated files back to the repo
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install anthropic pytest pytest-cov
+
+      # ── Requirements agents ─────────────────────────────────────────────
+      - name: Run requirements agents
+        if: ${{ github.event.inputs.agent == 'requirements' || github.event.inputs.agent == 'all' || github.event_name == 'push' }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          AGENT_ANSWERS: |
+            Command-line terminal (Python)
+            Both Human vs Human and Human vs AI, with three AI difficulty levels: Easy, Medium, and Hard
+            Score tracking across rounds that persists to a file so scores are saved when the app closes, and a replay option after each game
+        run: |
+          python requirements_agent.py
+          python requirements_agent_sonnet.py
+
+      # ── Cross-review + final merge ──────────────────────────────────────
+      - name: Run cross-review pipeline
+        if: ${{ github.event.inputs.agent == 'cross_review' || github.event.inputs.agent == 'all' || github.event_name == 'push' }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python cross_review_agents.py
+
+      # ── Coding agent ────────────────────────────────────────────────────
+      - name: Run coding agent
+        if: ${{ github.event.inputs.agent == 'coding' || github.event.inputs.agent == 'all' || github.event_name == 'push' }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python coding_agent.py
+
+      # ── Unit testing agent ──────────────────────────────────────────────
+      - name: Run unit testing agent
+        if: ${{ github.event.inputs.agent == 'unit_testing' || github.event.inputs.agent == 'all' || github.event_name == 'push' }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python unit_testing_agent.py
+
+      # ── Upload generated files as artifacts ─────────────────────────────
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-files
+          path: |
+            requirements/
+            game.py
+            test_game.py
+          if-no-files-found: ignore
+          retention-days: 30
+
+      # ── Commit generated files back to the repo ─────────────────────────
+      - name: Commit generated files
+        if: always()
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f requirements/ game.py test_game.py 2>/dev/null || true
+          git diff --cached --quiet || git commit -m "chore: update generated files from agent run [skip ci]"
+          git push
