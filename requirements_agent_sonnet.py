@@ -1,11 +1,39 @@
 #!/usr/bin/env python3
-"""Requirements generation agent for a Tic Tac Toe game (Claude Sonnet 4.6)."""
+"""Requirements generation agent for a Tic Tac Toe game (Claude Sonnet 4.6).
 
+Environment variables
+---------------------
+ANTHROPIC_API_KEY   Required.
+AGENT_ANSWERS       Optional. Newline-separated answers for non-interactive / remote runs.
+                    Example: export AGENT_ANSWERS="Python CLI\nHvH and HvAI\nScore tracking"
+REQUIREMENTS_FILE   Output path (default: requirements/requirements_sonnet.md).
+"""
+
+import os
+import sys
 import anthropic
 from pathlib import Path
 
-REQUIREMENTS_FILE = Path("requirements/requirements_sonnet.md")
+REQUIREMENTS_FILE = Path(os.environ.get("REQUIREMENTS_FILE", "requirements/requirements_sonnet.md"))
 MAX_ITERATIONS = 20
+
+
+def _make_answer_provider():
+    """Return a callable that yields answers from AGENT_ANSWERS env var or stdin."""
+    env_answers = os.environ.get("AGENT_ANSWERS", "")
+    if env_answers:
+        answers = iter(env_answers.split("\n"))
+        def from_env(question: str) -> str:
+            print(f"\n{question}")
+            answer = next(answers, "(no answer provided)")
+            print(f"> {answer}")
+            return answer
+        return from_env
+    else:
+        def from_stdin(question: str) -> str:
+            print(f"\n{question}")
+            return input("> ").strip() or "(no answer provided)"
+        return from_stdin
 
 SYSTEM_PROMPT = """You are an expert software requirements analyst specialising in game development.
 
@@ -25,7 +53,10 @@ Each requirement must include: ID · Title · Description · Acceptance Criteria
 
 
 def main() -> None:
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        sys.exit("ERROR: ANTHROPIC_API_KEY environment variable is not set.")
     client = anthropic.Anthropic()
+    get_answer = _make_answer_provider()
 
     tools: list[dict] = [
         {
@@ -109,8 +140,7 @@ def main() -> None:
                 continue
 
             if block.name == "ask_user":
-                print(f"\n{block.input['question']}")
-                answer = input("> ").strip()
+                answer = get_answer(block.input["question"])
                 tool_results.append(
                     {
                         "type": "tool_result",
