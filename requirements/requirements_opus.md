@@ -1,307 +1,283 @@
 # Tic Tac Toe — Requirements Specification
 
-## 1. Overview
+## 1. Project Overview
 
-A command-line Tic Tac Toe game implemented in Python. The game supports two modes of play: **Human vs Human** (local hot-seat) and **Human vs AI** (single player against the computer). It tracks scores across multiple rounds within a session and offers a replay option after each completed game.
+A command-line Tic Tac Toe game implemented in Python supporting two play modes (Human vs Human and Human vs AI) with three AI difficulty levels (Easy, Medium, Hard). The game tracks scores across rounds, persists them to a local file, and offers a replay option after each match.
 
-### 1.1 Scope
-- Standard 3×3 Tic Tac Toe board.
-- Two players represented by the symbols `X` and `O`.
-- Turn-based input through the terminal.
-- Automatic detection of win, draw, and ongoing-game states.
-- Persistent score tracking for the duration of a session.
-- Replay loop allowing successive rounds without restarting the program.
-
-### 1.2 Out of Scope
-- Online/networked multiplayer.
-- Persistent score storage between sessions (unless trivially extended).
-- Graphical user interface, sound, or animations.
-- Variable board sizes.
+**Target Platform:** Command-line terminal (Python 3.x)
+**Players:** 1–2 (local)
+**Persistence:** File-based score storage
 
 ---
 
 ## 2. Functional Requirements
 
-### FR-001 · Game Initialization
-**Description:** On launch, the application shall display a welcome message and present a main menu allowing the user to choose game mode (Human vs Human or Human vs AI) or exit.
+### FR-001 · Game Board Initialization
+**Description:** The game shall initialize a 3x3 grid as the playing board at the start of every match. All cells must begin empty.
 **Acceptance Criteria:**
-- A welcome banner is printed on startup.
-- The menu lists: (1) Human vs Human, (2) Human vs AI, (3) Quit.
-- The application accepts the user's numeric or labeled choice and transitions accordingly.
-- Invalid menu choices prompt the user to re-enter without crashing.
+- A new game starts with all 9 cells empty.
+- The board is represented internally as a data structure that can be queried and updated by cell coordinates (e.g., 1–9 or row/column).
+- The board state resets cleanly between rounds with no residual marks.
 
-### FR-002 · Board Representation
-**Description:** The game shall maintain a 3×3 grid representing the playing field. Each cell can be empty, contain `X`, or contain `O`.
+### FR-002 · Player Setup and Symbol Assignment
+**Description:** The game shall assign symbols `X` and `Y` (configurable; default `X` and `O`) to two players. `X` always moves first.
 **Acceptance Criteria:**
-- Internal state is a 3×3 structure (e.g., list of lists or flat array of length 9).
-- All cells are empty at the start of each round.
-- Cell state is updated only by valid moves.
+- Player 1 is assigned `X`; Player 2 (human or AI) is assigned `O`.
+- Players may optionally enter custom display names; AI uses the name "Computer".
+- The player using `X` makes the first move of each round.
 
-### FR-003 · Player Symbol Assignment
-**Description:** Player 1 shall be assigned `X` and Player 2 (or the AI) shall be assigned `O`. `X` always moves first.
+### FR-003 · Game Mode Selection
+**Description:** Before each match, the user shall choose between Human vs Human (HvH) and Human vs AI (HvAI) modes.
 **Acceptance Criteria:**
-- Player 1 always plays as `X`.
-- Player 2 / AI always plays as `O`.
-- The first turn of every round belongs to `X`.
+- A menu prompt offers the two modes plus an exit option.
+- Selecting HvAI triggers FR-004 (difficulty selection).
+- Invalid menu input is rejected with a clear error message and re-prompt.
 
-### FR-004 · Turn Management
-**Description:** The game shall alternate turns between the two players until the round ends in a win or draw.
+### FR-004 · AI Difficulty Selection
+**Description:** When HvAI mode is chosen, the user shall select one of three difficulty levels: Easy, Medium, or Hard.
 **Acceptance Criteria:**
-- After a successful move, control passes to the other player.
-- The current player's identity and symbol are clearly indicated before each move.
-- A player cannot take two consecutive turns.
+- Easy, Medium, and Hard are each selectable.
+- Easy: AI chooses a random legal move.
+- Medium: AI plays optimally ~50% of the time and randomly otherwise (or uses a heuristic that blocks immediate threats and takes immediate wins, but does not lookahead deeply).
+- Hard: AI uses the Minimax algorithm (optionally with alpha-beta pruning) and never loses; the best a human can achieve is a draw.
 
-### FR-005 · Move Input (Human Player)
-**Description:** A human player shall enter a move by specifying a cell on the board (e.g., a number 1–9 corresponding to grid positions, or row/column coordinates).
+### FR-005 · Turn Management
+**Description:** The game shall alternate turns between the two players, starting with `X`.
 **Acceptance Criteria:**
-- The chosen input scheme is documented on screen (e.g., a reference grid showing 1–9).
-- The system accepts valid input and places the player's symbol in that cell.
-- Empty input or non-numeric input is rejected with a clear error message; the same player is re-prompted.
+- After a valid move is registered, the active player switches.
+- The current player's name and symbol are displayed at the start of each turn.
+- A player cannot make two moves in succession.
 
-### FR-006 · Move Validation
-**Description:** The game shall reject any move targeting a cell that is already occupied or outside the board range.
+### FR-006 · Move Input and Validation
+**Description:** The game shall accept a move from the active human player and validate it before applying.
 **Acceptance Criteria:**
-- A move into an occupied cell prints an error and re-prompts the same player.
-- A move outside the 1–9 range (or outside row/column bounds) prints an error and re-prompts.
-- The board state is unchanged when a move is rejected.
+- Input is accepted as a number 1–9 (mapped to cells left-to-right, top-to-bottom) or as row/column — choice documented to user.
+- Non-numeric, out-of-range, or already-occupied cell inputs are rejected with a descriptive error.
+- The user is re-prompted until a valid move is entered.
+- A valid move updates the board with the active player's symbol.
 
-### FR-007 · Win Detection
-**Description:** After every move, the game shall check for a winning line (three identical symbols in any row, column, or diagonal) and declare the corresponding player the winner.
+### FR-007 · AI Move Generation
+**Description:** When the AI's turn occurs, the game shall compute and play a move automatically based on the selected difficulty.
 **Acceptance Criteria:**
-- All 8 possible winning lines (3 rows, 3 columns, 2 diagonals) are evaluated.
-- When a win is detected, the winning player is announced and the round ends immediately.
-- No further moves are accepted in that round after a win.
+- AI move computation completes within 1 second on Hard (see NFR-001).
+- The AI's chosen cell is always legal (empty).
+- The AI's move is announced before the board is redrawn (e.g., "Computer plays cell 5").
 
-### FR-008 · Draw Detection
-**Description:** If all 9 cells are filled and no winning line exists, the game shall declare a draw.
+### FR-008 · Win Detection
+**Description:** After each move, the game shall check for a winning condition (three identical symbols in a row, column, or diagonal).
 **Acceptance Criteria:**
-- A draw is announced only when the board is full and no winner has been detected.
-- Draw detection occurs after each move (not only at game end heuristics).
-- The round ends immediately upon a draw.
+- All 8 win lines (3 rows, 3 columns, 2 diagonals) are evaluated.
+- When a win is detected, the round ends immediately and the winner is announced.
+- The winning line may optionally be highlighted in the final board display.
 
-### FR-009 · AI Opponent
-**Description:** In Human vs AI mode, the computer shall automatically choose a legal move when it is its turn.
+### FR-009 · Draw Detection
+**Description:** The game shall detect a draw when all 9 cells are filled without a winner.
 **Acceptance Criteria:**
-- The AI never selects an occupied or out-of-range cell.
-- The AI plays automatically without human input.
-- The AI's chosen move is displayed before the board is re-rendered.
-- The AI strategy is at minimum non-trivial (e.g., wins if a winning move is available, blocks an opponent's immediate win, otherwise picks center/corner/random per a documented heuristic — or implements a Minimax-based optimal strategy).
+- A draw is declared only after the 9th move if no win condition was triggered.
+- A "Draw" message is shown to the user.
+- The round ends and triggers the replay prompt (FR-011).
 
 ### FR-010 · Score Tracking
-**Description:** The game shall maintain a score tally for Player 1, Player 2/AI, and Draws across all rounds played within a single session.
+**Description:** The game shall maintain a running tally of wins for Player 1, wins for Player 2 (or AI), and draws across all rounds in the current session and prior sessions.
 **Acceptance Criteria:**
-- Scores start at 0 when the application launches.
-- After each round, the appropriate counter (Player 1 wins, Player 2/AI wins, or Draws) increments by 1.
-- The current scores are displayed at the start of each new round and at session end.
-- Scores persist across rounds within a session but reset when the application exits.
+- Scores increment by 1 for the appropriate category at the end of each round.
+- The current scoreboard is shown after each round and at startup.
+- Separate score buckets exist for HvH and HvAI (split by difficulty) to allow meaningful comparison.
 
-### FR-011 · Replay / Continue Option
-**Description:** After each round concludes, the game shall ask the user whether to play another round.
+### FR-011 · Replay Option
+**Description:** After each round (win or draw), the game shall prompt the user to play again.
 **Acceptance Criteria:**
-- A yes/no prompt is shown after a win or draw is announced.
-- A "yes" response begins a new round with a cleared board, retaining the current scores and game mode.
-- A "no" response returns to the main menu (or exits, depending on FR-012).
-- Invalid responses re-prompt without crashing.
+- Prompt accepts Yes/No (case-insensitive `y`/`n`).
+- Choosing Yes starts a new round, optionally allowing the user to change mode/difficulty.
+- Choosing No exits to the main menu or terminates the program (user choice).
+- Invalid input re-prompts the user.
 
-### FR-012 · Session Termination
-**Description:** The user shall be able to exit the game cleanly from the main menu or after declining a replay.
+### FR-012 · Persistent Score Storage
+**Description:** Scores shall be saved to a local file so that totals persist between application launches.
 **Acceptance Criteria:**
-- A "Quit" option is available from the main menu.
-- On exit, the final session scores are displayed.
-- The program terminates with exit code 0 under normal shutdown.
+- Scores are written to a file (e.g., `scores.json`) after each round and on graceful exit.
+- On startup, the game loads existing scores from the file if it exists.
+- If the file is missing or corrupted, the game starts with zeroed scores and logs a warning rather than crashing.
+- The score file is human-readable (JSON or similar).
 
-### FR-013 · Mode Switching
-**Description:** The user shall be able to return to the main menu after a round to switch between Human vs Human and Human vs AI modes.
+### FR-013 · Reset Scores
+**Description:** The user shall be able to reset the persistent scoreboard from the main menu.
 **Acceptance Criteria:**
-- Declining a replay returns the user to the main menu without exiting.
-- The user can then start a new game in a different mode.
-- Scores accumulated so far in the session remain visible/intact.
+- A "Reset Scores" menu option exists.
+- The user must confirm the action before scores are zeroed.
+- After reset, the score file reflects all zeros.
+
+### FR-014 · Graceful Exit
+**Description:** The user shall be able to quit the game cleanly at any prompt.
+**Acceptance Criteria:**
+- A quit option (e.g., menu choice or `q` input) is available at all major prompts.
+- On exit, scores are flushed to disk (per FR-012).
+- The terminal is left in a clean state (no leftover prompts or partial output).
 
 ---
 
 ## 3. Non-Functional Requirements
 
 ### NFR-001 · Performance
-**Description:** All gameplay actions shall feel instantaneous on commodity hardware.
+**Description:** The game shall remain responsive on standard consumer hardware.
 **Acceptance Criteria:**
-- Move validation, board rendering, and win/draw detection complete in under 50 ms.
-- AI move computation completes in under 500 ms even when using Minimax on a 3×3 board.
+- AI move on Hard difficulty completes in ≤ 1 second.
+- Board rendering and input validation feel instantaneous (< 100 ms perceived latency).
+- Application startup completes in ≤ 2 seconds.
 
-### NFR-002 · Reliability
-**Description:** The application shall not crash on invalid user input.
+### NFR-002 · Usability
+**Description:** The game shall be intuitive for a first-time user without external documentation.
 **Acceptance Criteria:**
-- All user-input paths are wrapped in input validation logic.
-- Unhandled exceptions are caught at the top level and produce a friendly error message rather than a stack trace.
-- The game can run an arbitrary number of consecutive rounds without memory leaks or state corruption.
+- Instructions for input format (cell numbering) are shown at the start of each round.
+- All prompts include examples of valid input.
+- Error messages are specific and actionable (e.g., "Cell 5 is already taken — choose another").
 
-### NFR-003 · Usability
-**Description:** The CLI shall be approachable for first-time users.
+### NFR-003 · Reliability
+**Description:** The game shall handle invalid input and unexpected conditions without crashing.
 **Acceptance Criteria:**
-- Onscreen instructions explain how to enter moves before the first prompt.
-- Error messages clearly state what went wrong and what is expected.
-- The current player and current score are visible during gameplay.
+- All user input paths validate input before use.
+- File I/O failures (missing/corrupt score file, permission errors) are caught and reported.
+- No unhandled exceptions are exposed to the user.
 
 ### NFR-004 · Maintainability
-**Description:** The codebase shall be organized so that game logic, AI logic, and I/O are decoupled.
+**Description:** The codebase shall be modular and easy to extend.
 **Acceptance Criteria:**
-- Board state and rule logic live in a module independent of input/output.
-- The AI strategy is encapsulated in a function or class that takes board state and returns a move.
-- Adding a new AI difficulty or alternative input scheme should not require modifying core rules.
+- Game logic, AI, UI rendering, and persistence are separated into distinct modules/classes.
+- Functions/methods have docstrings and clear names.
+- Adding a new AI difficulty requires changes only to the AI module.
+- Code passes a lint check (e.g., `flake8` or `ruff`) with no errors.
 
-### NFR-005 · Testability
-**Description:** Core game logic shall be unit-testable without requiring terminal interaction.
+### NFR-005 · Portability
+**Description:** The game shall run on Windows, macOS, and Linux terminals without modification.
 **Acceptance Criteria:**
-- Pure functions exist for: move application, win detection, draw detection, and AI move selection.
-- Unit tests can construct arbitrary board states and assert outcomes.
-- Test coverage for core logic is ≥ 80%.
+- No OS-specific dependencies are required for core functionality.
+- File paths use `pathlib` or `os.path` for cross-platform compatibility.
+- ANSI/color output degrades gracefully on terminals lacking ANSI support.
 
-### NFR-006 · Portability
-**Description:** The game shall run on any platform supporting Python 3.8+.
+### NFR-006 · Testability
+**Description:** Core game logic shall be unit-testable in isolation.
 **Acceptance Criteria:**
-- No use of OS-specific APIs in core logic.
-- Runs on Windows, macOS, and Linux terminals without modification.
-- Uses only the Python standard library (no third-party runtime dependencies).
-
-### NFR-007 · Accessibility
-**Description:** Output shall be readable in a standard monochrome terminal.
-**Acceptance Criteria:**
-- The game functions correctly without ANSI color support.
-- If color is used, it is purely decorative; all game-critical information is conveyed by text.
-- Board characters use plain ASCII so screen readers can interpret them.
+- Win/draw detection, move validation, and AI move selection are pure functions or testable methods.
+- A test suite (e.g., `pytest`) covers happy paths and edge cases for these components.
+- Tests can run without user interaction.
 
 ---
 
 ## 4. User Interface Requirements
 
 ### UI-001 · Board Rendering
-**Description:** The board shall be rendered to the terminal as ASCII art after every state change.
+**Description:** The game shall display the 3x3 board clearly in the terminal after every move.
 **Acceptance Criteria:**
-- Cells are arranged in a clearly delineated 3×3 grid using characters such as `|` and `-`.
-- Empty cells are rendered as a space or position number reference.
-- Occupied cells display the corresponding `X` or `O`.
-- The board is re-rendered after each move and at the start of each round.
+- Cells are separated by visible delimiters (e.g., `|` and `---`).
+- Empty cells display their cell number (1–9) to assist input, or a blank space — choice documented.
+- The board is redrawn (not appended) so the screen stays uncluttered (use screen-clear or extra spacing).
 
-### UI-002 · Move Reference Grid
-**Description:** A reference showing the numbering scheme for cell input shall be available to the player.
+### UI-002 · Main Menu
+**Description:** A main menu shall be presented at startup and after each replay decision.
 **Acceptance Criteria:**
-- A 1–9 reference grid (or coordinate scheme) is shown at the start of each round.
-- The reference can be requested again via a help command or is shown alongside the live board.
+- Menu options: Human vs Human, Human vs AI, View Scores, Reset Scores, Quit.
+- Options are numbered for selection.
+- Current scoreboard summary is visible from or near the menu.
 
 ### UI-003 · Turn Prompt
-**Description:** Before each human move, the UI shall clearly indicate whose turn it is.
+**Description:** Each turn shall display whose move it is and request input.
 **Acceptance Criteria:**
-- Message contains the player label (e.g., "Player 1 (X)") and a prompt to enter a move.
-- For AI turns, a message such as "AI is thinking..." is displayed before the AI's move is revealed.
+- The prompt includes the player's name and symbol (e.g., "Alice (X), enter cell 1–9: ").
+- The prompt is shown after the board is rendered.
 
-### UI-004 · Outcome Announcement
-**Description:** Upon round completion, the UI shall display the result clearly.
+### UI-004 · End-of-Round Feedback
+**Description:** The game shall clearly announce the result of each round.
 **Acceptance Criteria:**
-- A win prints a message like "Player 1 (X) wins!" with the final board shown.
-- A draw prints "It's a draw!" with the final board shown.
-- The updated session scores are shown immediately after the outcome.
+- A win announces the winner's name and symbol.
+- A draw is announced as such with no implied winner.
+- Updated scores are shown immediately after the result.
 
-### UI-005 · Error Feedback
-**Description:** Invalid actions shall produce concise, actionable error messages.
+### UI-005 · Error Messaging
+**Description:** All invalid actions shall trigger clear, non-technical error messages.
 **Acceptance Criteria:**
-- Invalid menu choice: "Please enter 1, 2, or 3."
-- Invalid move format: "Please enter a number from 1 to 9."
-- Occupied cell: "That cell is already taken. Choose another."
-- The player who caused the error is re-prompted on the same turn.
+- Errors are printed on a single line near the prompt.
+- Errors do not duplicate or accumulate visually.
+- The user is re-prompted without losing game state.
 
-### UI-006 · Replay Prompt
-**Description:** After each round, the UI shall ask the user whether to play again.
+### UI-006 · Help/Instructions
+**Description:** A brief help screen shall be accessible from the main menu.
 **Acceptance Criteria:**
-- Prompt accepts `y`/`yes` and `n`/`no` (case-insensitive).
-- Invalid responses re-prompt with a clarifying message.
-- The chosen path (replay, main menu, or quit) is honored immediately.
-
-### UI-007 · Session Summary
-**Description:** When the user quits, a summary of session scores shall be displayed.
-**Acceptance Criteria:**
-- Summary lists Player 1 wins, Player 2/AI wins, Draws, and total rounds.
-- Summary appears once, immediately before program termination.
+- Help describes rules, input format, AI levels, and how to quit.
+- Help is reachable in ≤ 2 keystrokes from the main menu.
 
 ---
 
 ## 5. Technical Requirements
 
 ### TR-001 · Language and Runtime
-**Description:** The game shall be implemented in Python 3.8 or higher.
+**Description:** The game shall be implemented in Python 3.8 or newer.
 **Acceptance Criteria:**
-- Source code uses syntax compatible with Python 3.8+.
-- The application starts via `python main.py` (or equivalent entry point).
-- No use of features deprecated/removed in the target Python version.
+- Code uses only features available in Python 3.8+.
+- A `requirements.txt` or `pyproject.toml` declares the Python version.
 
-### TR-002 · Dependency Constraints
-**Description:** The game shall use only the Python standard library at runtime.
+### TR-002 · Dependencies
+**Description:** The game shall minimize external dependencies, using the standard library where practical.
 **Acceptance Criteria:**
-- No `requirements.txt` runtime dependencies are required to play.
-- Development-only dependencies (e.g., `pytest`) may be listed separately.
+- Core gameplay relies on the standard library only (`json`, `random`, `pathlib`, etc.).
+- Any optional third-party packages (e.g., `colorama` for cross-platform colors) are listed in `requirements.txt` with pinned versions.
 
-### TR-003 · Project Structure
-**Description:** The codebase shall be organized into clearly named modules.
+### TR-003 · Architecture
+**Description:** The application shall follow a modular architecture separating concerns.
 **Acceptance Criteria:**
-- Suggested layout:
-  - `main.py` — entry point and menu loop
-  - `game.py` — board, rules, win/draw detection
-  - `ai.py` — AI move selection
-  - `ui.py` — terminal rendering and input
-  - `tests/` — unit tests
-- Each module has a single, well-defined responsibility.
+- Modules/classes exist for: `Board`, `Game` (controller), `Player` (with `HumanPlayer` and `AIPlayer` subclasses), `AI` strategies (Easy/Medium/Hard), `ScoreManager` (persistence), and `UI`/CLI rendering.
+- Cross-module dependencies flow in one direction (UI → Game → Board/Player); no circular imports.
 
-### TR-004 · AI Algorithm
-**Description:** The AI shall implement a deterministic algorithm capable of at least non-losing play on a 3×3 board.
+### TR-004 · AI Implementation
+**Description:** The Hard AI shall use the Minimax algorithm to guarantee optimal play.
 **Acceptance Criteria:**
-- The AI uses either a heuristic (win → block → center → corner → side) or Minimax (with optional alpha-beta pruning).
-- If Minimax is used, the AI never loses on a 3×3 board.
-- The chosen algorithm is documented with comments or a brief design note.
+- Minimax explores the full game tree (3x3 is small enough; alpha-beta pruning optional).
+- Hard AI never loses against any opponent — verified by automated tests.
+- Easy and Medium use distinct, documented strategies (random; heuristic/mixed).
 
-### TR-005 · Input Handling
-**Description:** All user input shall be read from standard input via `input()` and validated before use.
+### TR-005 · Score Persistence Format
+**Description:** Scores shall be persisted in a structured, human-readable format.
 **Acceptance Criteria:**
-- Inputs are stripped of whitespace and normalized (e.g., lowercased) before comparison.
-- Numeric inputs are converted with try/except guarding against `ValueError`.
-- EOF (Ctrl+D) and KeyboardInterrupt (Ctrl+C) are caught and trigger graceful shutdown with the session summary.
+- The score file is JSON.
+- Schema includes: HvH wins per player slot, HvAI wins per difficulty (human wins, AI wins, draws), and a schema version field.
+- File is written atomically (write to temp + rename) to prevent corruption.
 
-### TR-006 · State Management
-**Description:** Game state (board, current player, scores, mode) shall be encapsulated rather than held in scattered globals.
+### TR-006 · File Locations
+**Description:** Persistent files shall be stored in a predictable, user-appropriate location.
 **Acceptance Criteria:**
-- A `Game` (or similar) class or dataclass holds round state.
-- A `Session` (or similar) construct holds cross-round state (scores, mode).
-- State is reset cleanly at the start of each new round.
+- Default location is the user's home directory or an OS-appropriate config path (e.g., `~/.tictactoe/scores.json`).
+- The path is configurable via environment variable or constant.
+- The directory is created automatically if missing.
 
-### TR-007 · Logging and Debugging (Optional)
-**Description:** Optional debug output may be enabled via an environment variable or CLI flag.
+### TR-007 · Entry Point and Packaging
+**Description:** The game shall be runnable from the command line via a single command.
 **Acceptance Criteria:**
-- Default runs produce only user-facing output.
-- A `--debug` flag (or `DEBUG=1`) enables verbose logging of internal state transitions.
-- Debug logging does not interfere with normal gameplay output when disabled.
+- Running `python -m tictactoe` (or equivalent script) launches the game.
+- A `__main__.py` or console-script entry point is provided.
+- A `README.md` documents installation and run instructions.
 
-### TR-008 · Testing Framework
-**Description:** Unit tests shall be runnable with a standard Python test runner.
+### TR-008 · Logging
+**Description:** The application shall log unexpected conditions for debugging without polluting normal output.
 **Acceptance Criteria:**
-- Tests live under `tests/` and follow `test_*.py` naming.
-- Tests are runnable via `python -m unittest` or `pytest`.
-- Tests cover win detection, draw detection, move validation, and AI legality.
+- Python's `logging` module is used at WARNING level by default.
+- Logs go to a file (e.g., `~/.tictactoe/app.log`), not the user's terminal, unless a `--debug` flag is set.
 
 ---
 
-## 6. Glossary
+## 6. Out of Scope
 
-- **Round:** A single play-through from an empty board to a win or draw.
-- **Session:** The duration the application is running; may include multiple rounds.
-- **Cell:** One of the 9 positions on the 3×3 board.
-- **Line:** Any row, column, or diagonal that can produce a win.
-- **Hot-seat:** Two human players sharing one keyboard, taking turns.
+- Online/networked multiplayer.
+- Graphical user interface (GUI) or web frontend.
+- Custom board sizes (e.g., 4x4, 5x5) — fixed at 3x3.
+- User accounts or authentication.
+- Sound effects or animations.
+- Localization/internationalization (English only for v1).
 
 ---
 
-## 7. Traceability Summary
+## 7. Glossary
 
-| Category | Count | IDs |
-|---|---|---|
-| Functional | 13 | FR-001 … FR-013 |
-| Non-Functional | 7 | NFR-001 … NFR-007 |
-| User Interface | 7 | UI-001 … UI-007 |
-| Technical | 8 | TR-001 … TR-008 |
-| **Total** | **35** | |
+- **HvH:** Human vs Human local play.
+- **HvAI:** Human vs AI play.
+- **Minimax:** A recursive decision algorithm for two-player zero-sum games that selects the move minimizing the opponent's maximum payoff.
+- **Round:** A single game played from empty board to win or draw.
+- **Session:** The period from launching the application to quitting it.
