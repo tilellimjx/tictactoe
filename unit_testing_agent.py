@@ -118,7 +118,7 @@ def main() -> None:
         initial_message=initial_message,
         tools=TOOLS_DEV,
         work_dir=work_dir,
-        max_tokens=16384,
+        max_tokens=32000,
         max_iterations=max_iterations,
     )
 
