@@ -7,6 +7,7 @@ whether running locally or in a cloud environment.
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import anthropic
@@ -211,8 +212,19 @@ def run_agent(
         kwargs["thinking"] = {"type": "adaptive"}
 
     for i in range(max_iterations):
-        with client.messages.stream(**kwargs) as stream:
-            response = stream.get_final_message()
+        # Retry on rate-limit with exponential backoff (60s, 120s, 240s)
+        delay = 60
+        for attempt in range(4):
+            try:
+                with client.messages.stream(**kwargs) as stream:
+                    response = stream.get_final_message()
+                break
+            except anthropic.RateLimitError:
+                if attempt == 3:
+                    raise
+                print(f"[rate limit — retrying in {delay}s (attempt {attempt + 1}/3)]")
+                time.sleep(delay)
+                delay *= 2
 
         for block in response.content:
             if block.type == "text" and block.text:

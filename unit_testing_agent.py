@@ -91,24 +91,16 @@ def main() -> None:
     print(f"  New test file  : {test_file}")
     print("=" * 60)
 
-    game_source = game_path.read_text(encoding="utf-8")
-    unit_test_source = unit_test_path.read_text(encoding="utf-8") if unit_tests_available else ""
-
     initial_message = (
         f"Run the existing unit tests, then write and run your own integration test suite.\n\n"
         f"Game source    : {game_file}\n"
         f"Existing tests : {unit_test_file} ({'present — run these first' if unit_tests_available else 'not present — skip step 1'})\n"
         f"Your test file : {test_file}\n\n"
-        + (
-            f"--- Existing unit tests ({unit_test_file}) ---\n\n"
-            f"```python\n{unit_test_source}\n```\n\n"
-            if unit_tests_available else ""
-        )
-        + f"--- Game source ({game_file}) ---\n\n"
-        f"```python\n{game_source}\n```\n\n"
+        f"Use read_file to inspect the source files before writing tests. "
         f"Begin by running `pytest {unit_test_file} -v` "
-        + ("to see the baseline." if unit_tests_available else "(skip — file not present).")
-        + " Then write your own tests in `{test_file}` and iterate until all pass."
+        + ("to see the baseline, then read both files to understand the implementation."
+           if unit_tests_available else "(skip — file not present), then read {game_file}.")
+        + f" Write your integration tests to {test_file} and iterate until all pass."
     )
 
     run_agent(
