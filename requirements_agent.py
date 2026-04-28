@@ -4,7 +4,7 @@
 import anthropic
 from pathlib import Path
 
-REQUIREMENTS_FILE = Path("requirements.md")
+REQUIREMENTS_FILE = Path("requirements/requirements_opus.md")
 MAX_ITERATIONS = 20
 
 SYSTEM_PROMPT = """You are an expert software requirements analyst specialising in game development.
@@ -120,6 +120,7 @@ def main() -> None:
 
             elif block.name == "save_requirements":
                 content: str = block.input["content"]
+                REQUIREMENTS_FILE.parent.mkdir(parents=True, exist_ok=True)
                 REQUIREMENTS_FILE.write_text(content, encoding="utf-8")
                 print(f"\nRequirements saved to {REQUIREMENTS_FILE}")
                 tool_results.append(
