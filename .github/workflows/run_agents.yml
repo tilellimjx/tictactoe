@@ -88,6 +88,7 @@ jobs:
           path: |
             requirements/
             game.py
+            test_units.py
             test_game.py
           if-no-files-found: ignore
           retention-days: 30
@@ -98,6 +99,6 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -f requirements/ game.py test_game.py 2>/dev/null || true
+          git add -f requirements/ game.py test_units.py test_game.py 2>/dev/null || true
           git diff --cached --quiet || git commit -m "chore: update generated files from agent run [skip ci]"
           git push
