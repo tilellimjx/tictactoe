@@ -315,3 +315,18 @@ table th {
 @media (prefers-reduced-motion: reduce) {
   .cell.shake { animation: none; }
 }
+
+/* Stats Dashboard (FR-W22) */
+.stats-card { max-width: 760px; }
+.stats-table { font-size: 0.95rem; }
+.stats-table th { cursor: pointer; user-select: none; }
+.stats-table th:hover { background: var(--accent-color); color: #fff; }
+
+kbd {
+  background: var(--cell-hover);
+  border: 1px solid var(--grid-line);
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+}

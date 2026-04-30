@@ -1,7 +1,8 @@
 # Tic Tac Toe — Software Requirements Specification
 
 **Version:** 2.0 (Web Edition)
-**Platform:** Static Web Application (HTML5 + CSS3 + ES2015+ JavaScript), runnable by double-clicking `index.html`
+**Platform:** Static Web Application — pure HTML5, CSS3, and vanilla JavaScript (ES2020+)
+**Distribution:** Single static site, runnable by double-clicking `index.html` (file:// protocol) or by serving via any static web host
 **Status:** Approved for implementation
 
 ---
@@ -22,190 +23,194 @@
 
 ## 1. Project Overview
 
-This document specifies the requirements for **Tic Tac Toe v2**, a fully client-side, browser-based reimplementation of the v1 console game described in `requirements_final.md`. The application supports the same two play modes — **Human vs Human (HvH)** and **Human vs AI (HvAI)** — with the same three AI difficulty levels (Easy, Medium, Hard) and the same fairness, scoring, and replay semantics, all adapted to a graphical web UI.
+This document specifies the requirements for **version 2.0** of the Tic Tac Toe application. V2 re-platforms the v1 console game into a **browser-based, single-page web application** built entirely with static assets (HTML, CSS, JavaScript) — no server, no build tools, and no third-party runtime frameworks. The user opens `index.html` in any modern browser (Chrome, Firefox, Edge, or Safari) — including by double-clicking the file from the file system — and the entire game runs client-side.
 
-V2 introduces three significant additions on top of the v1 feature set:
+The game retains v1's gameplay essentials — two play modes (Human vs Human, Human vs AI), three AI difficulty levels (Easy, Medium, Hard / Minimax), persistent scores, replay flow, and graceful exit — but adapts every interaction to a graphical browser context using mouse, touch, and keyboard input.
 
-1. **Three selectable visual themes** — *Beach*, *Mountains*, *Desert* — each with a distinctive background and a unique pair of X/O symbols (per the v2 enhancement request).
-2. **Move history with undo / redo** — a new gameplay-enhancing feature unique to v2.
-3. **Match-mode (best-of-N)** — a session-shaping feature unique to v2.
-4. **Sound effects with mute toggle** — a new sensory feature unique to v2 (sound was explicitly out-of-scope in v1; see v1 §7).
+**New in V2 (high level):**
 
-(Three new features total, plus the required theme system. See §2.20–§2.22 for full specs and rationales.)
+- **Web UI** replacing the terminal interface (FR-W01 onward).
+- **Three selectable visual themes** — *Beach*, *Mountains*, *Desert* — each with its own full-screen background image and unique X/O symbols (FR-W02).
+- **Three brand-new gameplay/UX features** not present in v1 (FR-W20, FR-W21, FR-W22 — see §2.4 below).
 
-**Target Audience:** Casual players on desktop or mobile browsers. The product favours visual polish, accessibility, and frictionless use — no install step, no server, no account.
+**Target Audience:** Casual players who prefer a polished visual experience over a terminal, on desktop or mobile browsers.
 
-**Distribution model:** A small static-site bundle (one HTML entry plus CSS and JS files). Opening `index.html` directly via the local filesystem (`file://`) launches the game with full functionality; no web server, no build step, and no internet connection are required at runtime.
+**Out-of-scope reminders (see §8):** real-time online multiplayer, server-side accounts, native mobile apps, custom board sizes (still 3×3), localisation beyond English.
 
 ---
 
 ## 2. Functional Requirements
 
-### FR-001 · Main Menu and Game Mode Selection
+The functional requirements are organised into four groups:
+- **§2.1 — Carried-over gameplay requirements** (adapted from v1).
+- **§2.2 — Web-platform requirements** (new structural requirements for the browser).
+- **§2.3 — Theme system requirements** (the three-theme requirement).
+- **§2.4 — Three new gameplay/UX features** (additional V2 enhancements).
+
+### 2.1 Gameplay Requirements (Carried Over and Adapted)
+
+#### FR-001 · Main Menu and Game Mode Selection
 
 **Description:**
-On page load, and whenever the user navigates back to the main menu, the application shall present a graphical menu allowing the user to choose a game mode or system action.
+On application load, and whenever the user navigates back to the main menu, the system shall display a graphical main menu allowing the user to choose a game mode or system action.
 
 **Acceptance Criteria:**
-- The menu is a styled HTML view (not a numbered text list) and presents the following options as clickable buttons:
-  1. Human vs Human
-  2. Human vs AI
-  3. View Scores
-  4. Reset Scores
-  5. Help / Instructions
-  6. Theme: Beach / Mountains / Desert (theme picker — see FR-019)
-  7. Settings (sound toggle, match length — see FR-021, FR-022)
-- Selecting **Human vs Human** initiates an HvH session and proceeds to player-name entry (FR-003).
-- Selecting **Human vs AI** proceeds to AI difficulty selection (FR-002), then to player-name entry.
-- Selecting **View Scores** displays the cumulative scoreboard (FR-014) in a modal or dedicated view.
+- The main menu displays clickable buttons (each also keyboard-focusable and `Enter`-activatable) for:
+  1. **Human vs Human**
+  2. **Human vs AI**
+  3. **View Scores**
+  4. **Reset Scores**
+  5. **Help / Instructions**
+  6. **Theme: [current theme]** (opens the theme picker, FR-W02)
+- Selecting **Human vs Human** opens the player-name entry screen (FR-003).
+- Selecting **Human vs AI** opens AI difficulty selection (FR-002), then player-name entry.
+- Selecting **View Scores** displays the cumulative scoreboard (FR-014) and offers a "Back" control.
 - Selecting **Reset Scores** triggers the score-reset flow (FR-015).
-- Selecting **Help** opens the help screen (UI-008).
-- Quitting is handled implicitly by closing the browser tab; an explicit "Return to Main Menu" button is provided everywhere a game session is in progress.
-- Any keyboard activation (Enter / Space) on a focused menu button is equivalent to a click.
-- Invalid programmatic states (e.g., navigating to a sub-menu before required selections) are prevented by disabling buttons rather than throwing errors.
+- Selecting **Help** opens the help panel (UI-006).
+- The current theme is visibly indicated on the menu and applied on initial load.
+- A "Quit" option is **not** required (browsers do not allow programmatic tab closure); instead, the menu is the application root and may be revisited freely.
 
 ---
 
-### FR-002 · AI Difficulty Selection
+#### FR-002 · AI Difficulty Selection
 
 **Description:**
 When Human vs AI mode is selected, the system shall allow the player to choose one of three AI difficulty levels.
 
 **Acceptance Criteria:**
-- A sub-view displays three buttons:
-  - `Easy — random moves`
-  - `Medium — heuristic (win / block / centre / corner / random)`
-  - `Hard — unbeatable (Minimax)`
-- The selection is visually confirmed (the chosen card highlights) and a confirmation message appears (`"Difficulty set to: Hard"`).
-- The chosen difficulty governs all AI moves for the entire game session until the user returns to the main menu.
-- A "Back" button returns to the main menu without persisting any selection.
+- A panel displays three buttons:
+  - **Easy** — random moves
+  - **Medium** — heuristic (win / block / centre / corner / random)
+  - **Hard** — unbeatable (Minimax)
+- Each button has a one-sentence description below it.
+- Selection is confirmed visually (button highlights as selected) and the chosen difficulty governs all AI moves until the user returns to the main menu.
+- A "Back" control returns to the main menu without starting a game.
 
 ---
 
-### FR-003 · Player Name Entry and Validation
+#### FR-003 · Player Name Entry and Validation
 
 **Description:**
-Before a game begins, the application shall prompt each human player to enter a display name and validate it via an HTML form.
+Before a game begins, the system shall prompt human players for display names via HTML text inputs and validate them.
 
 **Acceptance Criteria:**
-- In HvH mode, two separate text inputs are shown, labelled `Player 1 (X)` and `Player 2 (O)`.
-- In HvAI mode, one text input is shown for the human player; the AI is labelled by difficulty (`AI (Easy)`, `AI (Medium)`, `AI (Hard)`).
-- Names must be **1–20 characters** in length after trimming whitespace.
-- Allowed characters: alphanumerics, spaces, hyphens (`-`), and underscores (`_`). All other characters are rejected client-side, including HTML tags and control characters. Input must be sanitised before being inserted into the DOM (use `textContent`, never `innerHTML`, for player-supplied strings — see TR-007).
-- Leading and trailing whitespace is stripped before validation.
-- Empty input is rejected with an inline error rendered next to the field; alternatively the user may accept the default name (`Player 1` / `Player 2`) by clicking a "Use default" button.
-- The names `AI`, `Computer`, `AI (Easy)`, `AI (Medium)`, and `AI (Hard)` (case-insensitive) are reserved for the system and rejected with: `"That name is reserved. Please choose another."`
-- In HvH mode, two players may not share the same name (case-insensitive); a duplicate triggers an inline error on the Player 2 field.
-- If the entered name (case-insensitive) matches an existing record in `localStorage`, that player's history is reused and continues to accumulate.
-- The form's "Start Game" button is disabled while any field is invalid.
+- HvH mode shows two labelled text inputs: "Player 1 (X)" and "Player 2 (O)".
+- HvAI mode shows one text input for the human player; the AI is auto-labelled by difficulty (`AI (Easy)` / `AI (Medium)` / `AI (Hard)`).
+- Names must be **1–20 characters** after trimming whitespace.
+- Allowed characters: alphanumerics, spaces, hyphens (`-`), and underscores (`_`). The input field enforces this via a `pattern` attribute and JS validation; rejected characters trigger an inline error below the field.
+- Leading/trailing whitespace is stripped before validation.
+- Empty input is rejected with the inline error: `"Please enter a name (1–20 characters)."` Pressing Enter on an empty field accepts the default `"Player 1"` / `"Player 2"`.
+- Reserved names — `AI`, `Computer`, `AI (Easy)`, `AI (Medium)`, `AI (Hard)` (case-insensitive) — are rejected with: `"That name is reserved. Please choose another."`
+- In HvH mode, both players cannot share the same name (case-insensitive); duplicates trigger an inline error on the second field.
+- If a name (case-insensitive) already exists in stored scores, the player's history is reused.
+- A **Start Game** button is enabled only when all fields validate.
 
 ---
 
-### FR-004 · Board Initialisation
+#### FR-004 · Board Initialisation
 
 **Description:**
-At the start of every new round, the system shall initialise a clean 3×3 game board with all cells empty.
+At the start of every new round, the system shall render a clean 3×3 graphical game board with all cells empty.
 
 **Acceptance Criteria:**
+- The board is rendered as a 3×3 grid of clickable/tappable cells using HTML elements (e.g., `<button>` cells inside a CSS Grid container).
 - All 9 cells are unoccupied at round start.
-- Cells are addressed internally by indices 0–8 (left-to-right, top-to-bottom). The UI maps these to the rendered grid; clicking a cell selects it (no numeric keyboard input is required, but keyboard navigation per UI-002 is supported).
-- The board state from any previous round does not persist into the new round.
-- Any prior win-line highlight, undo/redo history (FR-020), and animation state are cleared.
+- Cells are addressable by index `0–8` internally and by row/column visually; the 1–9 numeric scheme remains supported via keyboard shortcuts (FR-W04).
+- Board state from any previous round does not persist into the new round.
 
 ---
 
-### FR-005 · Turn Management
+#### FR-005 · Turn Management
 
 **Description:**
 The system shall alternate turns between the two players (or human and AI), enforcing that the player holding the first-move privilege for the current round plays `X` and moves first.
 
 **Acceptance Criteria:**
-- Within a round, after each valid move the active player switches; a player cannot move twice in succession.
-- The current player's name and symbol are clearly displayed in the turn indicator (UI-003) before each turn.
-- In HvAI mode, when it is the AI's turn the controller advances automatically and disables click-input on the board until the AI move resolves.
-- The first-move privilege for each round is determined by FR-006.
+- Within a round, after each valid move the active player switches; a player cannot move twice consecutively.
+- The current player's name and symbol are clearly displayed in a turn-indicator panel above or beside the board (UI-003).
+- In HvAI mode, the AI's turn advances automatically with a brief animated "thinking" indicator (UI-003).
+- The first-move privilege for the round is determined by FR-006.
 
 ---
 
-### FR-006 · Starting-Player Fairness Across Rounds
+#### FR-006 · Starting-Player Fairness Across Rounds
 
 **Description:**
-To avoid systematic first-move advantage skewing scoreboard results across a multi-round session, the player who moves first shall alternate between rounds.
+To avoid the systematic first-move advantage skewing scoreboard results, the player who moves first shall alternate between rounds.
 
 **Acceptance Criteria:**
-- In round 1 of a fresh game configuration, Player 1 / the human plays `X` and moves first.
-- In each subsequent round started via FR-017's "Play Again", the starting player alternates.
-- The X/O symbol allocation follows the first-mover for the round — the player who moves first in a given round always plays `X`.
-- The starting-player rotation resets when the user returns to the main menu and starts a new game configuration.
-- The current round's starting player and symbol assignment are clearly announced in a banner above the board before the first move.
-- The scoreboard always identifies players by name (not by symbol).
+- Round 1 of a fresh game configuration: Player 1 / the human plays `X` and moves first.
+- Each subsequent "Play Again" round (FR-017) flips the starting player.
+- The `X`/`O` symbol allocation always follows the first-mover for the round.
+- Returning to the main menu and starting a new game configuration resets the rotation.
+- The starting player and symbol assignment are announced visually before the first move of each round.
+- The scoreboard always identifies players by name, never by symbol.
 
 ---
 
-### FR-007 · Human Player Move Input
+#### FR-007 · Human Player Move Input
 
 **Description:**
-On a human player's turn, the system shall accept a cell selection via mouse click, touch tap, or keyboard, validate it, and apply it to the board.
+On a human player's turn, the system shall accept a cell selection via mouse/touch click on the cell or via keyboard, validate it, and apply it to the board.
 
 **Acceptance Criteria:**
-- The 3×3 grid is rendered as 9 interactive cells (`<button>` elements for accessibility).
-- Clicking, tapping, or pressing Enter / Space on a focused empty cell places the current player's symbol there.
-- Clicking an already-occupied cell is a no-op and triggers a brief "shake" animation plus an inline message: `"Cell is already taken."` (UI-005).
-- Cells the active player has not yet selected during their turn highlight on hover/focus to indicate they are clickable.
-- Keyboard navigation: arrow keys move focus across the grid, Enter / Space selects.
-- A "Forfeit Round" button is always visible during a round and triggers the forfeit flow (FR-008).
-- Input is disabled during AI thinking, during animations, and after a round ends.
+- Clicking/tapping an empty cell places the active player's symbol and advances the game.
+- Clicking an already-occupied cell produces no move and shows a brief shake animation on the cell plus an aria-live polite message: `"Cell is already taken — choose an empty cell."`
+- Clicking outside the cells (e.g., on the board background) does nothing.
+- Keyboard input is fully supported (FR-W04): keys `1`–`9` map to cells (left-to-right, top-to-bottom); arrow keys move keyboard focus between cells; `Enter`/`Space` places a move on the focused cell.
+- It is impossible to place a move during the AI's turn (cells are non-interactive while AI is thinking).
 
 ---
 
-### FR-008 · Mid-Round Forfeit / Abandon
+#### FR-008 · Mid-Round Forfeit / Abandon
 
 **Description:**
-A human player shall be able to abandon the current round mid-game and return to the main menu.
+A human player shall be able to abandon the current round mid-game and return to the main menu without crashing the application.
 
 **Acceptance Criteria:**
-- Clicking the "Forfeit Round" button (always visible during a round) opens a confirmation modal: `"Forfeit this round?"` with `Yes` / `No` buttons.
-- On confirmation, the round ends immediately. The forfeit is **not** recorded as a win/loss — the round is treated as if it never occurred (consistent with v1).
-- After confirmation, the system returns to the main menu (FR-001).
-- Cancelling returns the player to the same board with state unchanged.
-- Forfeit is unavailable during the AI's turn; the button is disabled until control returns to the human.
+- A **Forfeit Round** button is visible during gameplay.
+- Clicking it shows a modal confirmation: `"Forfeit this round? Your progress will not be saved as a win or loss."` with **Yes, Forfeit** and **Cancel** buttons.
+- On confirmation, the round ends immediately. Forfeits are **not** recorded as a win/loss (consistent with v1).
+- After confirmation, the user is returned to the main menu.
+- Cancelling the modal returns the user to the same board state with no changes.
+- The button is disabled (greyed-out, `aria-disabled="true"`) while the AI is thinking.
+- Pressing the `Esc` key opens the same forfeit-confirm modal.
 
 ---
 
-### FR-009 · AI Move — Easy Difficulty
+#### FR-009 · AI Move — Easy Difficulty
 
 **Description:**
-On Easy difficulty, the AI shall select its move uniformly at random from all currently available cells.
+On Easy difficulty, the AI shall select its move uniformly at random from all available cells.
 
 **Acceptance Criteria:**
 - The AI never selects an occupied cell.
 - Move selection has no strategic bias; any empty cell is equally probable.
-- The chosen cell is announced visually (a brief "AI plays cell N" toast or status line) and the placement is animated (UI-006).
-- The AI move completes within 500 ms perceived latency (NFR-001).
-- The randomness source is replaceable via a seedable PRNG (TR-005) so unit tests can be deterministic.
+- The chosen move is rendered with the same animation as a human move (FR-W05) and briefly highlighted.
+- AI move computation completes within 200 ms; the visible "thinking" delay is artificial and capped (UI-003).
+- The randomness source is injectable to support deterministic unit tests (TR-005).
 
 ---
 
-### FR-010 · AI Move — Medium Difficulty
+#### FR-010 · AI Move — Medium Difficulty
 
 **Description:**
-On Medium difficulty, the AI shall apply a deterministic priority-ordered heuristic.
+On Medium difficulty, the AI shall apply the v1 deterministic priority-ordered heuristic.
 
 **Acceptance Criteria:**
-- The AI evaluates the following priorities in order and plays the first applicable move:
-  1. **Win** — if the AI has an immediate winning move, take it.
-  2. **Block** — if the opponent has an immediate winning move, block it.
-  3. **Centre** — if the centre cell is empty, take it.
+- The AI evaluates priorities in this strict order and plays the first applicable move:
+  1. **Win** — take an immediate winning move if available.
+  2. **Block** — block an opponent's immediate winning move.
+  3. **Centre** — take cell index 4 (centre) if empty.
   4. **Opposite corner** — if the opponent occupies a corner and the diagonally opposite corner is empty, take it.
   5. **Empty corner** — take any empty corner.
   6. **Random** — otherwise pick any remaining empty cell at random.
 - The AI never selects an occupied cell.
-- The chosen cell is announced and animated.
-- The AI move completes within 500 ms (NFR-001).
+- AI move computation completes within 200 ms (NFR-001).
 
 ---
 
-### FR-011 · AI Move — Hard Difficulty
+#### FR-011 · AI Move — Hard Difficulty
 
 **Description:**
 On Hard difficulty, the AI shall play optimally using the Minimax algorithm and shall be unbeatable.
@@ -213,15 +218,13 @@ On Hard difficulty, the AI shall play optimally using the Minimax algorithm and 
 **Acceptance Criteria:**
 - The AI always selects the move with the highest Minimax score.
 - A perfect human can force at most a draw; the AI never loses.
-- The AI never selects an occupied cell.
-- Tie-break among equally-scored optimal moves: prefer the move that wins in the fewest plies (or loses in the most plies); secondary tie-break is the lowest-indexed cell.
-- The chosen cell is announced and animated.
-- The AI move completes within 200 ms on the reference machine (NFR-001).
-- See TR-004 for algorithmic details.
+- Tie-break rules: prefer fastest win (or slowest loss); secondary tie-break is lowest cell index.
+- AI move computation completes within 200 ms in the browser on the reference device (NFR-001).
+- See TR-004 for algorithmic details. The function is side-effect-free and accepts an injectable RNG for tests.
 
 ---
 
-### FR-012 · Win Detection
+#### FR-012 · Win Detection
 
 **Description:**
 After every move, the system shall check whether the current player has won by occupying three cells in a winning line.
@@ -229,194 +232,263 @@ After every move, the system shall check whether the current player has won by o
 **Acceptance Criteria:**
 - All 8 winning lines are evaluated: 3 rows, 3 columns, 2 diagonals.
 - A win is detected immediately after the move that completes the line.
-- On detection, the round ends, further input on the board is disabled, and the winning player's name and symbol are announced (e.g., `"Alice (X) wins!"`).
-- The three winning cells are visually distinguished by a CSS class adding a coloured background AND an SVG/CSS strike-through line drawn over them (visual + structural, so colour is never the sole signal — NFR-008).
+- On detection, the round ends; further input is blocked.
+- The winning cells are visually distinguished by:
+  - A colour/glow effect (theme-dependent — see FR-W02), AND
+  - A non-colour textual or shape indicator (e.g., the cells receive a `winning` CSS class that draws an outline or strike-through line) so the win is conveyed without colour (NFR-008).
+- An animated line is drawn through the three winning cells (FR-W05).
+- The winner's name and symbol are announced (UI-006).
 - The win is recorded in the score tracker (FR-014) and persisted (FR-016).
 
 ---
 
-### FR-013 · Draw Detection
+#### FR-013 · Draw Detection
 
 **Description:**
 After every move, if no winning condition is met and no empty cells remain, the system shall declare a draw.
 
 **Acceptance Criteria:**
 - A draw is declared when all 9 cells are filled with no winner.
-- The message `"It's a draw! Well played by both sides."` is displayed prominently.
+- The message `"It's a draw! Well played by both sides."` is displayed (UI-006).
 - The draw is recorded in the score tracker (FR-014) and persisted (FR-016).
 
 ---
 
-### FR-014 · Score Tracking
+#### FR-014 · Score Tracking
 
 **Description:**
 The system shall maintain a running record for each named player across all rounds in the current session and across sessions (via persistence — FR-016).
 
 **Acceptance Criteria:**
-- Each player record tracks: **wins**, **losses**, and **draws**. Games-played is computed as the sum on display.
-- Scores are updated immediately after each round outcome (win or draw); forfeits (FR-008) are not recorded.
+- Each player record tracks: **wins**, **losses**, **draws**. Games-played is the sum.
+- Scores are updated immediately after each round outcome; forfeits are not recorded.
 - Score data is keyed by lowercased player name; the original-casing display name is stored alongside.
-- Scores accumulated in previous sessions (loaded from `localStorage` on startup) continue to accumulate across sessions.
-- AI records are split by difficulty: separate entries for `AI (Easy)`, `AI (Medium)`, and `AI (Hard)`.
-- HvH rounds are tracked per individual player name (not per "Player 1 / Player 2" slot).
+- Scores from prior browser sessions (loaded from `localStorage`) continue to accumulate.
+- AI records are split by difficulty: separate entries for `AI (Easy)`, `AI (Medium)`, `AI (Hard)`.
+- HvH rounds are tracked per individual player name.
 
 ---
 
-### FR-015 · Score Reset
+#### FR-015 · Score Reset
 
 **Description:**
 The user shall have an explicit, confirmed mechanism to clear all persisted score data.
 
 **Acceptance Criteria:**
-- The `Reset Scores` option in the main menu (FR-001) triggers this flow.
-- A confirmation modal is displayed: `"This will permanently delete all scores. Are you sure?"` with `Yes, delete` / `Cancel` buttons.
-- On confirmation, the in-memory score store and the `localStorage` entry are cleared (replaced with an empty schema, preserving the `schema_version` field).
-- A backup is written to a separate `localStorage` key (`tictactoe_scores_backup`) before deletion, allowing manual recovery via developer tools if needed.
-- On cancel, no change is made and the menu re-displays.
-- In-memory and persisted state are kept in sync at all times.
+- The **Reset Scores** option in the main menu (FR-001) triggers this flow.
+- A modal confirmation displays: `"This will permanently delete all scores. Are you sure?"` with **Delete All** and **Cancel** buttons.
+- On confirm, both the in-memory score store AND the `localStorage` entry are cleared (replaced with an empty schema, preserving the schema version).
+- A backup of the previous data is written to a separate `localStorage` key (`tictactoe.scores.bak`) immediately before deletion.
+- On cancel, no change occurs and the menu re-displays.
+- In-memory and persisted state remain in sync at all times.
 
 ---
 
-### FR-016 · Score Persistence
+#### FR-016 · Score Persistence
 
 **Description:**
-Player scores shall be saved to the browser's `localStorage` after every round so they are not lost when the page is closed or refreshed.
+Player scores shall be saved to browser `localStorage` after every round so they survive page reloads, tab closes, and browser restarts.
 
 **Acceptance Criteria:**
-- Scores are written to `localStorage` under the key `tictactoe_scores` as a JSON string.
-- The store is updated after every completed round (win or draw) and before page unload (`beforeunload` listener).
-- On startup, if the entry exists and is schema-valid, scores are loaded automatically.
-- If the entry is missing, an empty store is initialised.
-- If the entry is corrupted (invalid JSON or schema-invalid), a non-blocking warning toast is shown, the corrupt value is moved to `tictactoe_scores_corrupt_backup`, and the session starts with empty in-memory scores.
-- Schema validation on load checks: required fields present, numeric counters non-negative, schema version recognised.
-- See TR-005 for the schema.
-- If `localStorage` is unavailable (e.g., disabled by browser policy or quota exceeded), the application falls back to an in-memory store and shows a one-time banner: `"Scores cannot be saved in this browser session."` Gameplay is otherwise unaffected.
+- Scores are written to `localStorage` under the key `tictactoe.scores.v2`.
+- The data is written after every completed round (win or draw) and on the `beforeunload` and `visibilitychange` events.
+- On page load, if the key exists and parses as valid JSON matching the schema, scores are loaded automatically.
+- If the stored value is missing, scores start empty.
+- If the stored value is corrupt (invalid JSON or schema-invalid), the corrupt value is moved to `tictactoe.scores.v2.bak`, a non-blocking warning toast is shown (`"Saved scores were corrupted and have been backed up. Starting fresh."`), and the session begins with empty scores.
+- Schema validation on load checks: required fields present, numeric counters non-negative, `schema_version` recognised.
+- If `localStorage` is unavailable (e.g., disabled, full, private-browsing in Safari), the game falls back to an in-memory store and shows a non-blocking warning: `"Scores will not be saved (browser storage unavailable)."` Gameplay is unaffected.
+- See TR-005 for schema.
 
 ---
 
-### FR-017 · Replay Option
+#### FR-017 · Replay Option
 
 **Description:**
 After each completed round, the system shall offer the players options for what to do next.
 
 **Acceptance Criteria:**
-- A modal or end-of-round panel displays buttons: `Play Again (same settings)`, `Return to Main Menu`, `Change Theme`.
-- `Play Again` starts a new round with the same players and settings, resetting only the board; the starting player rotates per FR-006.
-- `Return to Main Menu` returns to the main menu (FR-001).
-- `Change Theme` opens the theme picker (FR-019) inline, then returns to the end-of-round panel.
-- If a match (FR-022) is in progress and not yet decided, the only option offered is `Next Round`; `Return to Main Menu` is also offered with a confirmation that abandoning ends the match without a winner.
+- A panel displays three buttons:
+  - **Play Again** (same settings; starts a new round with starting-player rotation per FR-006)
+  - **Main Menu** (returns to FR-001 to change mode/difficulty/players)
+  - **View Scoreboard** (opens the cumulative scoreboard, then returns to this panel)
+- The panel appears after the round-summary display (FR-018).
 
 ---
 
-### FR-018 · Round Summary
+#### FR-018 · Round Summary
 
 **Description:**
-After a win or draw, the system shall display a round summary before/within the replay prompt.
+After a win or draw, the system shall display a round summary before the replay prompt.
 
 **Acceptance Criteria:**
-- The final board state is shown with the winning line highlighted (FR-012) when applicable.
+- The final board state is shown with the winning line highlighted (FR-012), or with a "Draw" overlay.
 - The outcome is clearly announced (winner name + symbol, or draw message).
-- The current cumulative scoreboard is displayed (FR-014).
+- The current cumulative scoreboard for the participants is displayed inline (FR-014).
 - A small stats block is shown for the round (display only; not persisted):
   - Total moves played.
-  - Wall-clock duration (mm:ss), measured via `performance.now()`.
+  - Wall-clock duration (mm:ss).
   - For HvAI rounds, average AI move computation time in milliseconds.
-- The replay options (FR-017) are shown immediately below the summary.
+- The replay prompt (FR-017) follows immediately below.
 
 ---
 
-### FR-019 · Theme Selection (NEW in v2 — required by enhancement request)
+#### FR-019 · Graceful Application Exit / Page Unload
 
 **Description:**
-The user shall be able to choose between three visual themes — **Beach**, **Mountains**, **Desert** — each of which changes the application background image and the symbols rendered for X and O.
+The user shall be able to leave the application cleanly with scores preserved, regardless of how the page is closed.
 
 **Acceptance Criteria:**
-- A theme picker is reachable from (a) the main menu, (b) the in-game settings panel, and (c) the end-of-round panel.
-- The picker displays three preview cards labelled `Beach`, `Mountains`, `Desert`. Each card shows a thumbnail of the background and the X/O symbols used.
-- The currently active theme is visually marked as selected.
-- Selecting a theme:
-  - Applies a `data-theme="beach|mountains|desert"` attribute on the `<html>` or `<body>` element. All theme styling is driven by CSS attribute selectors and CSS custom properties (no inline-style writes from JS for theme colours).
-  - Swaps the background image to the theme's image (or CSS gradient fallback if the image fails to load).
-  - Swaps the X and O symbols. Each symbol is rendered as either an inline SVG or a Unicode glyph defined per theme:
-
-    | Theme     | Background motif (image or CSS gradient)              | X symbol                  | O symbol                   |
-    |-----------|-------------------------------------------------------|---------------------------|----------------------------|
-    | Beach     | Sand + ocean (warm yellows + blue)                    | Palm tree (🌴 / SVG)      | Sun (☀ / SVG)              |
-    | Mountains | Snow-capped peaks (cool blues + white)                | Snowflake (❄ / SVG)       | Pine tree (🌲 / SVG)       |
-    | Desert    | Dunes + sky (orange + tan)                            | Cactus (🌵 / SVG)         | Tumbleweed / sun (SVG)     |
-
-  - Both symbols within a theme are visually distinguishable from each other at a glance (NFR-008).
-- The chosen theme is persisted to `localStorage` under the key `tictactoe_theme` and is restored on next load.
-- The default theme on first ever launch is `Beach`.
-- Switching themes mid-round is allowed and does not affect game state — only the visual rendering changes; existing X/O placements re-render with the new theme's symbols.
-- Each theme defines its own colour palette (background, board grid lines, win-line colour, text colour) via CSS custom properties so contrast remains AA-compliant on every theme.
+- On the `beforeunload` and `pagehide` events, the latest in-memory scores are flushed synchronously to `localStorage`.
+- If a round is mid-flight when the page is closed, the round is discarded (no score change), consistent with the v1 forfeit-not-recorded rule.
+- No confirmation dialog is shown on unload (browsers heavily restrict these).
+- The game does not register listeners that would prevent normal browser navigation away from the page.
 
 ---
 
-### FR-020 · Move History with Undo / Redo (NEW in v2 — Feature 1 of 3)
+### 2.2 Web-Platform Requirements (New)
 
-**Rationale (one-line):** Pure-client feature that adds genuine gameplay depth and a teaching aid for new players, with no analogue in v1.
+#### FR-W01 · Single-File-Openable Static Web App
 
 **Description:**
-The system shall maintain a stack-based history of all moves in the current round and shall expose Undo and Redo controls during HvH play and during the human's turn in HvAI play.
+The application shall run entirely client-side from a static file system, openable by double-clicking `index.html` in any modern browser without any local server.
 
 **Acceptance Criteria:**
-- A history list (move-stack) records every move applied to the board within a round, in order, including the player and cell index.
-- An **Undo** button is visible during a round. When clicked:
-  - In HvH mode: the most recent move is reverted; the previous player becomes the active player; the redo stack gains the reverted move.
-  - In HvAI mode: undo reverts both the AI's last move *and* the human's previous move (one logical "turn"), so the human regains the same decision point. If the human has not yet moved (i.e., the AI just made the opening move because the human is `O` for the round), undo is disabled.
-- A **Redo** button is visible during a round. Clicking it re-applies the most recently undone move (and, in HvAI mode, also the AI move that followed it).
-- Any new move clears the redo stack.
-- Undo/redo is disabled (greyed out) when the corresponding stack is empty and after the round has ended.
-- Undo/redo affects only board and turn state. **Outcomes already recorded in the score tracker are not retroactively edited** — undo only operates within an in-progress round.
-- Keyboard shortcuts: `Ctrl/Cmd + Z` triggers undo; `Ctrl/Cmd + Shift + Z` (or `Ctrl/Cmd + Y`) triggers redo, when focus is inside the game view.
-- Animations for undo/redo mirror the placement animation in reverse / replay.
+- The application loads and runs correctly when opened via the `file://` protocol (i.e., double-clicking `index.html`).
+- No `fetch()`, `XMLHttpRequest`, or dynamic `import()` calls require an HTTP server. (Static `<script src="...">` and `<link rel="stylesheet" href="...">` references to local relative paths are permitted.)
+- All assets (HTML, CSS, JS, images) are bundled in a single project folder using relative paths only — no absolute or `http(s)://` references for game assets.
+- The app works in the latest two stable releases of Chrome, Firefox, Edge, and Safari.
+- A `README.md` in the project root explains: how to run (double-click `index.html`), supported browsers, and the project layout.
 
 ---
 
-### FR-021 · Sound Effects with Mute Toggle (NEW in v2 — Feature 2 of 3)
-
-**Rationale (one-line):** Sound was explicitly out-of-scope in v1 (§7); browsers natively provide the Web Audio API so this is purely a client feature that adds satisfying, accessible feedback.
+#### FR-W04 · Keyboard and Touch Input Support
 
 **Description:**
-The application shall play short sound effects on key gameplay events and shall provide a clearly visible mute control whose state persists across sessions.
+All gameplay interactions shall be operable via mouse, touchscreen, and keyboard.
 
 **Acceptance Criteria:**
-- Sound events:
-  - Move placement (X and O have distinct, very short tones — ≤ 150 ms).
-  - Win (a brief celebratory chord — ≤ 800 ms).
-  - Draw (a soft neutral tone — ≤ 600 ms).
-  - Invalid-cell click (a short low "thud").
-  - Theme change (a brief swoosh).
-- All sounds are generated procedurally via the **Web Audio API** (`AudioContext`, `OscillatorNode`, `GainNode`) so the project ships **no audio asset files** — keeping the bundle small and avoiding browser autoplay-policy issues with `<audio>` element loading from `file://`.
-- A mute button (speaker icon) is visible in the top bar of every screen. Clicking toggles between muted and unmuted; the icon visibly reflects state and has an accessible label.
-- The mute state is persisted to `localStorage` under the key `tictactoe_muted` and restored on next load. Default: unmuted.
-- The first sound is only played after the first user gesture (click/keypress) to comply with browsers' autoplay policy. An `AudioContext` is lazily created and resumed on first interaction.
-- If the Web Audio API is unavailable, audio is silently disabled (no errors, no console noise) and the mute toggle is hidden.
-- No sound shall block, delay, or otherwise gate gameplay. Audio failures never affect game state.
+- Number keys `1`–`9` place a move on the corresponding cell during a human's turn (top-left = `1`, bottom-right = `9`).
+- Arrow keys (`Left`/`Right`/`Up`/`Down`) move keyboard focus between board cells.
+- `Enter` or `Space` plays a move on the focused cell.
+- `Esc` opens the forfeit-confirm modal during gameplay (FR-008).
+- All menu buttons are reachable via `Tab`, with a visible focus outline.
+- Tap targets on the board are at least 44×44 CSS pixels at default zoom (mobile-friendly).
 
 ---
 
-### FR-022 · Match Mode (Best-of-N) (NEW in v2 — Feature 3 of 3)
-
-**Rationale (one-line):** Adds session-shaping competitive structure unique to v2, useful for both HvH duels and AI-difficulty challenges, with no analogue in v1.
+#### FR-W05 · Animations and Visual Feedback
 
 **Description:**
-The user shall be able to play a configurable best-of-N "match" consisting of multiple rounds, with a match-level scoreboard distinct from the lifetime scoreboard.
+Significant gameplay events shall be accompanied by short, smooth visual animations that reinforce game state without delaying interaction.
 
 **Acceptance Criteria:**
-- The Settings view (reached from the main menu) and the pre-game configuration view both expose a **Match Length** selector with options: `Single round`, `Best of 3`, `Best of 5`, `Best of 7`. The default is `Single round` (preserves v1 semantics by default).
-- When a multi-round match is active:
-  - A match-progress strip is visible above the board showing each round's pending/win/loss/draw status as a dot or pill, plus the running match score (e.g., `Alice 2 — 1 Bob`, draws shown separately).
-  - At the end of every round the system automatically advances to the next round (using FR-017's `Next Round` button) until either the match concludes or the user exits.
-  - Starting-player fairness (FR-006) continues to alternate every round within the match.
-- The match concludes when one player has won more rounds than the other could possibly catch (e.g., 2 wins in a Best-of-3, regardless of remaining rounds), or when all rounds have been played. Drawn rounds count toward the played total but do not award a match win to either player; if the match ends with equal wins because of draws, the match is declared a draw.
-- A match-summary screen displays:
-  - The final match score.
-  - The match winner (or "Match drawn").
-  - Per-round outcomes in chronological order.
-  - Buttons: `New Match (same settings)`, `Return to Main Menu`.
-- Per-round wins, losses, and draws are still recorded in the persistent lifetime scoreboard (FR-014) exactly as they would be in single-round play. The match itself is **not** persisted across sessions in v2; closing the page mid-match abandons it.
+- Symbol placement: each `X` or `O` fades/scales in over 150–250 ms on placement.
+- Hover state: empty cells show a faint preview of the active player's symbol on mouse hover (desktop only).
+- Winning line: an SVG (or CSS) line is drawn through the three winning cells over ~400 ms.
+- Cell-already-taken feedback: a brief horizontal shake animation (~250 ms) on the rejected cell.
+- Animations respect the `prefers-reduced-motion` media query: when set, all transitions and animations are reduced to instantaneous transitions or fades ≤ 50 ms (NFR-008).
+
+---
+
+### 2.3 Theme System Requirements (New — Mandatory)
+
+#### FR-W02 · Three Selectable Visual Themes — Beach, Mountains, Desert
+
+**Description:**
+The application shall provide exactly three pre-built visual themes — **Beach**, **Mountains**, and **Desert** — selectable from a theme picker. Each theme defines its own full-screen background, colour palette, and unique X/O symbols.
+
+**Acceptance Criteria:**
+
+- A **Theme Picker** is reachable from the main menu (FR-001) and from a persistent theme button visible in the top corner of every screen.
+- The picker displays the three themes side-by-side as preview cards (each card shows a thumbnail of the background and the X/O symbols of that theme).
+- Clicking a theme card applies the theme **immediately** without a page reload and closes the picker.
+- The selected theme is persisted in `localStorage` under the key `tictactoe.theme` and restored on next page load.
+- **Default theme** on first run is **Beach**.
+- Each theme defines:
+
+  | Theme     | Background                                                       | X symbol                             | O symbol                              | Accent palette                       |
+  |-----------|------------------------------------------------------------------|--------------------------------------|---------------------------------------|--------------------------------------|
+  | Beach     | Sandy beach with ocean horizon (image or CSS gradient + SVG)     | A starfish (🌟 or custom SVG)         | A beach ball / life ring (custom SVG) | Sand-tan / ocean-blue / coral        |
+  | Mountains | Snow-capped mountain range with pine silhouettes (image or SVG)  | A pine tree (custom SVG)             | A snowflake (custom SVG)              | Forest-green / snow-white / slate    |
+  | Desert    | Desert dunes with sun and cacti silhouettes (image or SVG)       | A cactus (custom SVG)                | A sun (custom SVG)                    | Sand-orange / terracotta / sky-blue  |
+
+- Symbols are implemented as **inline SVG** (preferred) or as background images, sized to fit cleanly within a board cell (at least 60% of cell area, never overflowing).
+- The X-vs-O distinction must remain unambiguous in every theme: the two symbols must differ in shape (not just colour), per NFR-008.
+- Theme assets (images, SVGs, fonts if any) are stored in `assets/themes/<theme-name>/` and referenced by relative path.
+- Switching theme mid-game is supported; gameplay state (board, turn, scores) is preserved.
+- Each theme defines its CSS via a single namespaced class (e.g., `<body class="theme-beach">`) with all theme-specific colours scoped via CSS custom properties (e.g., `--bg-image`, `--accent-color`, `--symbol-x-url`).
+- The currently active theme name is announced to assistive technology via an `aria-live` region on change (e.g., `"Theme changed to Mountains."`).
+
+---
+
+### 2.4 Three New V2 Features (Beyond V1)
+
+The following three features are **net-new** to V2 and are not present in v1. Each is justified by a one-line rationale.
+
+#### FR-W20 · Move History with Undo (NEW)
+
+> **Rationale:** Web UIs make it cheap and natural to expose a per-move history; an undo affordance dramatically lowers friction for casual play and accidental misclicks, leveraging in-memory state with no backend.
+
+**Description:**
+The system shall maintain an in-memory move history for the current round and shall allow the human player(s) to **undo** the most recent move.
+
+**Acceptance Criteria:**
+- Each move (human or AI) is appended to a per-round history stack containing `{cellIndex, symbol, playerName, timestamp}`.
+- An **Undo** button is visible on the gameplay screen.
+- In **HvH** mode, clicking Undo reverts the last move and switches the turn back to the player who just moved.
+- In **HvAI** mode, clicking Undo reverts **two** moves (the AI's last move plus the human's preceding move), so the human is returned to their decision point.
+- Undo is disabled (greyed out, `aria-disabled="true"`) when:
+  - The history is empty (no moves yet this round).
+  - The round has already ended (win or draw detected).
+  - The AI is currently thinking.
+- Undo is **purely a within-round affordance**: it does not affect persisted scores (a round can only finish once, by win or draw).
+- A keyboard shortcut `Ctrl+Z` (or `Cmd+Z` on macOS) triggers Undo.
+- A round summary (FR-018) shows the move count; undone moves do not inflate the count (the history is the source of truth for "moves played").
+
+---
+
+#### FR-W21 · Sound Effects with Mute Toggle (NEW)
+
+> **Rationale:** Audio cues meaningfully enhance the feel of a graphical game and are trivially implementable via the browser Web Audio API or HTML5 `<audio>` — with no backend — while a mute toggle preserves the v1 ethos that core gameplay never depends on a single sensory channel.
+
+**Description:**
+The application shall play short sound effects for key gameplay events and shall provide a persistent mute/unmute control.
+
+**Acceptance Criteria:**
+- Distinct, short (≤ 500 ms) sound effects play on:
+  - Move placed (a soft click/pop).
+  - Round won (a brief celebratory chime).
+  - Round drawn (a neutral tone).
+  - Invalid move attempted (a soft buzzer).
+- A **mute toggle button** is visible in the top corner of every screen (alongside the theme button).
+- The mute state is persisted in `localStorage` under the key `tictactoe.muted` (boolean).
+- **Default is muted on first run** to respect users opening the page unexpectedly.
+- The mute button shows a clear icon for both states (e.g., 🔊 vs 🔇) plus an `aria-label` ("Mute sound" / "Unmute sound").
+- Sound assets are stored in `assets/sounds/` as `.mp3` or `.ogg`/`.wav` files (≤ 50 KB each total) referenced by relative path.
+- Sound playback errors (e.g., autoplay-policy block) are caught and logged to the JS console but never disrupt gameplay.
+- Sound effects are **shared across all themes** in V2 (per-theme sound is out of scope for V2).
+
+---
+
+#### FR-W22 · In-Game Stats Dashboard (NEW)
+
+> **Rationale:** With persistent scores already in `localStorage`, a richer stats view is a small UI addition that adds substantial replay value — surfacing per-difficulty win rates, streaks, and head-to-head HvH records that v1's flat scoreboard could not show.
+
+**Description:**
+The application shall provide a **Stats Dashboard** screen accessible from the main menu, presenting aggregate gameplay analytics derived from the persisted score data plus extra computed metrics.
+
+**Acceptance Criteria:**
+- A **Stats Dashboard** entry is reachable from the main menu (it can replace or live alongside the basic "View Scores" option from FR-001).
+- The dashboard displays at minimum:
+  - **Per-player overview table** — name, wins, losses, draws, total games, **win rate %**.
+  - **Current streak** per player (e.g., "Alice — W3" meaning three wins in a row, or "Bob — L2"). Streaks are computed from a per-player rolling outcome list maintained in the persisted store (extending the schema in TR-005).
+  - **Best streak ever** per player (longest historical winning streak).
+  - **Head-to-head summary** — for each pair of opponents who have played at least one round together, a row showing `Player A vs Player B: A-wins / draws / B-wins`. Pairs include `Human vs AI (Hard)`, etc.
+  - **Aggregate session stats** — total rounds played all-time, total draws, average game duration (only for rounds whose duration was recorded in the current session — ephemeral fallback to "—" for historical rounds).
+- The dashboard is sortable: clicking a table header sorts the per-player overview by that column (ascending/descending toggle).
+- An "Empty state" message is shown if no rounds have ever been played: `"No games played yet — finish a round to see your stats."`
+- A **Back** button returns to the main menu.
+- Schema migration: when a v1-style `localStorage` payload is found (no streak/h2h fields), it is migrated forward by initialising streak fields to zero and head-to-head records to empty; the migrated payload is re-saved (TR-005).
 
 ---
 
@@ -425,16 +497,17 @@ The user shall be able to play a configurable best-of-N "match" consisting of mu
 ### NFR-001 · Performance
 
 **Description:**
-The game shall remain responsive on standard consumer hardware in modern browsers.
+The application shall remain responsive on standard consumer hardware and on mobile devices.
 
 **Acceptance Criteria:**
-- **Reference machine:** dual-core 2 GHz CPU, 4 GB RAM, current Chrome / Firefox / Edge / Safari.
-- Initial page load to interactive (Time To Interactive) ≤ 1.5 s on the reference machine over `file://`.
-- Click-to-render latency for human moves ≤ 100 ms.
-- Easy and Medium AI moves complete within 500 ms total perceived latency.
-- Hard AI (Minimax) moves complete within 200 ms.
-- `localStorage` reads/writes complete within 50 ms.
-- All animations run at ≥ 30 fps on the reference machine; non-essential animations may be disabled if `prefers-reduced-motion: reduce` is set (NFR-008).
+- **Reference device:** mid-range laptop with dual-core 2 GHz CPU, 4 GB RAM, latest Chrome; or mid-range smartphone (≥ 2018) with current OS.
+- Initial page load (HTML + CSS + JS + theme assets) parses and renders the main menu within **2 seconds** on the reference device over local file system.
+- All UI interactions (button clicks, menu transitions, cell clicks) produce a visible response within **100 ms**.
+- Easy and Medium AI moves complete computation within **200 ms**.
+- Hard AI (Minimax with alpha-beta pruning) computes within **200 ms**.
+- Score writes to `localStorage` complete within **50 ms** (synchronous API).
+- Animations run at ≥ 30 FPS on the reference device; no animation blocks user input.
+- No unbounded memory growth across 100+ rounds in a single session.
 
 ---
 
@@ -444,27 +517,25 @@ The game shall remain responsive on standard consumer hardware in modern browser
 The game shall be intuitive for a first-time user without external documentation.
 
 **Acceptance Criteria:**
-- The main menu, board, and end-of-round panel each fit within a 1024×768 viewport without scrolling on default browser zoom.
-- All buttons and form controls have visible labels (no icon-only controls without an `aria-label`).
-- All prompts state the expected input format and valid range.
-- Error messages are specific, human-readable, and rendered inline next to the offending control.
-- A first-time user can start and complete a round without consulting the help screen.
-- No prompt requires the user to recall information shown more than one screen ago.
-- The currently active theme, current player, and undo/redo availability are always visible during a round.
+- The main menu, gameplay screen, and theme picker are usable without consulting `README.md`.
+- All buttons have descriptive text labels (icons alone are never the sole affordance, except for the mute and theme buttons which carry both an icon and an `aria-label`).
+- Error messages are specific, human-readable, and actionable.
+- Cell numbering (`1`–`9`) is shown via a tooltip on hover and in the help screen.
+- A first-time user can start and complete a game without assistance.
+- Informal usability gate: 5 of 5 first-time test users complete a round without assistance.
 
 ---
 
 ### NFR-003 · Reliability and Error Handling
 
 **Description:**
-The application shall handle invalid inputs and unexpected runtime conditions without crashing or losing data.
+The application shall handle invalid input, storage failures, and unexpected JavaScript errors without crashing the page.
 
 **Acceptance Criteria:**
-- No uncaught JavaScript exception ever propagates to the browser default error overlay during normal operation. A global `window.onerror` and `window.onunhandledrejection` handler catches stragglers, logs them to the dev console, and shows a non-blocking toast: `"Something went wrong. The game will continue."`
-- All input paths validate before use; invalid inputs trigger an inline error and re-prompt.
-- `localStorage` failures (quota exceeded, disabled, security errors) are caught and reported per FR-016 without terminating the session.
-- Asset load failures (background images, fonts) fall back gracefully to CSS-only equivalents.
-- Audio failures (FR-021) never block gameplay.
+- A global `window.onerror` handler catches uncaught exceptions, logs them to the console, and shows a non-blocking toast: `"Something went wrong. The current round has been reset."` The user is returned to the main menu.
+- All `localStorage` access is wrapped in `try/catch`; failures are caught and surfaced via the storage-unavailable warning (FR-016).
+- Invalid input on text fields is rejected inline; no exception ever reaches the console under normal use.
+- Closing the tab or navigating away never corrupts the score store (atomic full-payload write per TR-005).
 
 ---
 
@@ -475,98 +546,89 @@ The codebase shall be modular and easy to extend.
 
 **Acceptance Criteria:**
 - Code is organised into the modules defined in TR-003.
-- ES modules (`<script type="module">`) are used for separation; each module exports a small, documented surface.
-- All public functions carry JSDoc comments describing parameters, return types, and side effects.
-- No single function exceeds 50 lines.
-- Adding a new AI difficulty requires changes only inside the `ai.js` module (Open/Closed compliant).
-- Adding a new theme requires only (a) a new entry in `themes.js`, (b) a CSS block keyed by `[data-theme="..."]`, and (c) optional new SVG symbol definitions — no changes to game logic.
-- A `README.md` documents how to run the game (double-click `index.html`), the project layout, and how to run the unit tests.
+- Public functions and classes carry JSDoc comments describing parameters, return values, and side effects.
+- The codebase passes `eslint` (recommended config) with zero errors.
+- No single function exceeds 50 lines; no source file exceeds 500 lines.
+- Adding a new AI difficulty requires changes only inside the `ai.js` module.
+- Adding a new theme requires only:
+  1. A new folder under `assets/themes/<name>/`.
+  2. A new CSS class block in `themes.css` (or an additional `<theme>.css`).
+  3. A new entry in the themes registry array in `themes.js`.
+  No changes to game logic are required to add a theme.
+- A `README.md` documents installation, run instructions, and project layout.
 
 ---
 
-### NFR-005 · Portability and Browser Compatibility
+### NFR-005 · Browser Compatibility and Portability
 
 **Description:**
-The game shall run in modern browsers without modification.
+The application shall run on Windows, macOS, Linux, iOS, and Android using any modern browser without modification.
 
 **Acceptance Criteria:**
-- Supported browsers: latest two stable releases of Chrome, Firefox, Edge, and Safari (desktop and mobile).
-- The application uses only standard Web Platform APIs available in all four — no vendor-prefixed properties without standard fallbacks.
-- The application loads and runs identically when served over `http://` and when opened directly via `file://`. In particular: no feature shall require `fetch()` of local resources that browsers block under `file://`. All assets (CSS, JS, images, SVG) are loaded via plain `<link>` / `<script>` / `<img>` tags or inlined.
-- No build step is required. There is no transpilation, bundling, or package-manager runtime dependency for end users.
-- The application is responsive: it adapts to viewports from 320 px wide (mobile) to 1920 px wide (desktop) without horizontal scrolling.
-- Touch input is fully supported on mobile; tap targets are ≥ 44×44 CSS pixels.
+- Supported browsers: latest two stable releases of **Chrome**, **Firefox**, **Edge**, **Safari** (desktop and mobile).
+- The app uses only ECMAScript 2020 features that are universally supported across the above browsers (no transpilation required).
+- The app uses only platform-standard Web APIs: DOM, `localStorage`, Web Audio API (or HTML5 `<audio>`), CSS3, SVG.
+- No third-party JavaScript runtime libraries are bundled (no React, Vue, jQuery, etc.).
+- The single permitted exception is **dev-time** Jest + jsdom (Testing Requirements, §6) — these are never loaded in the runtime page.
+- All paths are relative; the app runs identically from `file://` and from any static HTTP server.
 
 ---
 
 ### NFR-006 · Data Integrity
 
 **Description:**
-The score store shall not be corrupted by interrupted writes or repeated tab refreshes.
+The score store shall not be corrupted by partial writes or unexpected page unload.
 
 **Acceptance Criteria:**
-- All score writes serialise via a single helper that JSON-stringifies the in-memory store, then writes once to `localStorage` (writes are synchronous and atomic at the `localStorage` API level).
-- A `schema_version` field is present in every persisted payload to support forward migration.
-- Reads validate the schema before trusting data; invalid data is quarantined per FR-016.
-- The persisted payload contains no executable content — only player names (sanitised on input — TR-007) and integer counters.
+- All score updates use the **full-payload write** pattern: serialise the entire scores object to JSON, then assign once to `localStorage.setItem(...)`. There is no partial-state intermediate.
+- The `schema_version` field is always present and validated on load.
+- The score store contains no executable code — only player names and integer counters.
+- On detected corruption, the corrupt payload is preserved at `tictactoe.scores.v2.bak` for one cycle (overwritten on the next corruption, never accumulated unboundedly).
 
 ---
 
 ### NFR-007 · Testability
 
 **Description:**
-Core game logic shall be unit-testable in isolation, with quantified coverage and verified correctness guarantees.
+Core game logic shall be unit-testable in isolation.
 
 **Acceptance Criteria:**
-- Win detection, draw detection, move validation, AI move selection, score persistence, theme application, undo/redo logic, and match-mode logic are pure functions or testable methods reachable without DOM rendering. (DOM-touching code is thin and tested separately via jsdom — see §6.)
-- The test suite uses **Jest** with the **jsdom** test environment.
-- Tests run via `npm test` from the project root with no other configuration required.
-- Tests run without user interaction and without a browser.
-- Branch coverage on the `board`, `ai`, `scoreManager`, `history`, `match`, and `theme` modules is **≥ 90%**, verified by Jest's `--coverage` reporter.
-- See §6 for the full testing requirement list.
+- Win detection, draw detection, move validation, AI move selection, score persistence, and theme registry lookups are pure functions or testable methods reachable without the DOM.
+- The test suite uses **Jest** with **jsdom** environment for any DOM-dependent tests.
+- Tests run via `npm test` from the project root.
+- Branch coverage on the `board.js`, `ai.js`, `scoreManager.js`, and `themes.js` modules is **≥ 90%**, verified by Jest's `--coverage` flag.
+- Mandatory test cases are detailed in §6.
+- Randomised AI behaviour is seedable via an injectable RNG (TR-005) for reproducible tests.
 
 ---
 
 ### NFR-008 · Accessibility
 
 **Description:**
-The UI shall be usable by keyboard-only and assistive-technology users, and shall never rely on colour alone to convey information critical to gameplay.
+The UI shall meet baseline accessibility standards and shall not rely on colour alone to convey information.
 
 **Acceptance Criteria:**
-- All interactive controls (menu buttons, cells, dialog buttons) are reachable via Tab and operable via Enter / Space.
-- The 3×3 grid has logical arrow-key navigation and an `role="grid"` / `role="gridcell"` ARIA structure.
-- Player symbols (`X`/`O`, regardless of theme) are distinguishable by **shape**, not only colour.
-- The winning line is conveyed by both colour AND a strike-through line element (FR-012).
-- All text has WCAG 2.1 AA contrast (≥ 4.5:1) on every theme background; theme palettes are chosen and tested to meet this.
-- All interactive elements have an accessible name (visible text or `aria-label`).
-- Live regions (`aria-live="polite"`) announce turn changes, move outcomes, and end-of-round results to screen readers.
-- The `prefers-reduced-motion: reduce` media query disables non-essential animations.
-- The game is fully playable on a monochrome display and by colour-vision-deficient users with no loss of information.
+- All interactive elements are reachable via keyboard (FR-W04) with a visible focus outline.
+- Player symbols `X` and `O` (or their themed equivalents) are distinguishable by **shape**, not only by colour.
+- Win/draw messages convey their meaning via text.
+- The winning line is communicated by both a colour effect and a non-colour cue (e.g., a CSS outline / strike line — FR-012).
+- Form fields have associated `<label>` elements; buttons have descriptive `aria-label` attributes when their visible text is an icon.
+- An `aria-live="polite"` region announces gameplay events: turn changes, invalid moves, win/draw, theme changes.
+- The application respects `prefers-reduced-motion` (FR-W05).
+- The application respects `prefers-color-scheme` only insofar as the active theme tolerates it; explicit theme choice always overrides.
+- Colour contrast for all text on theme backgrounds meets WCAG 2.1 AA (≥ 4.5:1 for body text, ≥ 3:1 for large text). A semi-transparent overlay panel is used behind text content where the raw background image would fail this check.
 
 ---
 
 ### NFR-009 · Localisation Readiness
 
 **Description:**
-While v2 ships in English only, the codebase shall be structured to allow translation later without refactoring.
+While V2 ships in English only, the codebase shall be structured to allow translation later without refactoring.
 
 **Acceptance Criteria:**
-- All user-facing strings are defined in a single `strings.js` module (or constant dictionary); no English strings appear inline in logic code.
-- Formatted strings use named placeholder substitution (e.g., `t("playerWins", { name, symbol })`).
-- This is a soft requirement; no actual translations are delivered for v2.
-
----
-
-### NFR-010 · Privacy and Offline Operation
-
-**Description:**
-The application shall not transmit any user data and shall work fully offline.
-
-**Acceptance Criteria:**
-- The application makes zero outgoing network requests at runtime. No analytics, no telemetry, no font/script CDNs, no external APIs.
-- All assets are local files within the project directory.
-- The application works identically with the device offline.
-- No cookies are set; storage is limited to `localStorage` keys prefixed with `tictactoe_`.
+- All user-facing strings live in a single module/object (e.g., `strings.js` exporting `STRINGS.en`); no English strings appear inline in logic code.
+- Formatted strings use named placeholder substitution (e.g., `format(STRINGS.en.winMessage, { name, symbol })`) — no positional concatenation that assumes English word order.
+- This is a soft requirement; no actual translations are delivered for V2.
 
 ---
 
@@ -575,29 +637,30 @@ The application shall not transmit any user data and shall work fully offline.
 ### UI-001 · Main Menu Display
 
 **Description:**
-The application shall display a clear, themed main menu on load and whenever the user returns to it.
+The application shall display a clean, themed main menu on load and whenever the user returns to it.
 
 **Acceptance Criteria:**
-- The menu view shows the game title `TIC TAC TOE` as a styled heading at the top.
-- Mode buttons (FR-001) are stacked vertically on narrow viewports and laid out horizontally on wide viewports.
-- A summary line shows the top-1 player from the lifetime scoreboard (e.g., `Top: Alice — 12 wins`) or `No scores recorded yet.` if empty.
-- The current theme is visually applied to the menu (background, accent colours).
-- The mute toggle (FR-021) and theme picker entry are visible in a persistent top bar.
+- The main menu shows the title `TIC TAC TOE` prominently at the top in a stylised heading.
+- A row of large, tappable buttons (FR-001) is centred on the screen.
+- A header bar displays:
+  - Current theme indicator (clickable → theme picker, FR-W02).
+  - Mute toggle (FR-W21).
+- A footer/sidebar shows the current top scores summary (top 3 players by wins) for context.
+- The current theme's background image fills the viewport behind a semi-transparent panel that hosts the menu controls (NFR-008 contrast).
 
 ---
 
 ### UI-002 · Board Rendering
 
 **Description:**
-The game board shall be rendered as a clearly readable 3×3 grid.
+The game board shall be rendered as a clearly readable 3×3 grid using CSS Grid.
 
 **Acceptance Criteria:**
-- The grid is implemented using CSS Grid with three equal columns and rows.
-- Each cell is a focusable `<button>` element of at least 80×80 CSS pixels on desktop and 60×60 on mobile, with a tap target ≥ 44×44 (NFR-005).
-- Empty cells display nothing in the centre by default. On hover or keyboard focus, the cell shows a faint preview of the active player's symbol at reduced opacity to indicate it is clickable.
-- Filled cells display the theme-specific X or O symbol (FR-019).
-- Cells participating in a winning line receive a `.win-cell` CSS class that adds a coloured backdrop, and an SVG strike-through element overlays the three cells.
-- Recently placed cells animate in (e.g., scale from 0 to 1 over 150 ms) unless `prefers-reduced-motion` is set.
+- The board is a `<div role="grid">` containing nine `<button role="gridcell">` elements.
+- Each cell displays either the active player's themed symbol (FR-W02) or, when empty, a faint position number `1`–`9` shown only on focus/hover (legend behaviour).
+- The grid uses CSS `grid-template-columns: repeat(3, 1fr)` with crisp dividers (1–2 px borders or theme-styled lines).
+- The board reflows responsively: it is centred, sized to fit the viewport, and never larger than 80% of the shorter viewport dimension on desktop or 90% on mobile.
+- Cell contents are vertically and horizontally centred.
 
 ---
 
@@ -607,65 +670,64 @@ The game board shall be rendered as a clearly readable 3×3 grid.
 Before each move, the system shall clearly indicate whose turn it is.
 
 **Acceptance Criteria:**
-- A turn banner above the board shows: `"<Name>'s turn (<Symbol>)"` with the symbol rendered using the active theme's icon.
-- On the AI's turn the banner reads `"AI is thinking…"` with a small spinner.
-- The banner uses `aria-live="polite"` so screen readers announce changes (NFR-008).
-- An artificial AI-thinking delay is bounded at 300 ms when the actual computation is faster, to avoid jarring instant moves.
+- A turn-indicator panel above (or to the side of) the board shows: `"<Player Name>'s turn"` plus the player's themed symbol.
+- The panel highlights (e.g., with a coloured border or glow) the active player.
+- In HvAI mode, when the AI is thinking, the panel changes to: `"AI is thinking..."` with a small spinner.
+- The "thinking" delay is artificial and bounded: at most ~600 ms, only added when the actual computation is faster than that. AI cells become non-interactive during this period.
 
 ---
 
-### UI-004 · Input Affordance and Prompt
+### UI-004 · Input Feedback
 
 **Description:**
-Human players shall be guided by consistent visual affordances.
+All user inputs shall produce immediate visual feedback.
 
 **Acceptance Criteria:**
-- Empty cells show a hover/focus state on pointer hover and keyboard focus.
-- Disabled cells (occupied, or while the AI is thinking, or after the round ends) show a disabled cursor and are not focusable for click input.
-- The "Forfeit Round" and "Undo / Redo" buttons (FR-020) sit in a control strip below the board.
-- An ARIA-described status line beneath the board summarises remaining empty cells and turn count.
+- Hovering an empty cell on a desktop browser shows a faint preview of the active player's symbol (FR-W05).
+- Clicking an empty cell places the symbol with a fade-in animation.
+- Clicking an occupied cell triggers the cell-shake animation (FR-W05) and an `aria-live` polite message.
+- All button presses produce a brief visual depression / colour change.
 
 ---
 
 ### UI-005 · Invalid Input Feedback
 
 **Description:**
-All invalid actions shall produce immediate, descriptive feedback without disrupting useful screen context.
+All invalid inputs shall produce immediate, descriptive inline error messages or visual cues.
 
 **Acceptance Criteria:**
-- Clicking an occupied cell triggers a 150 ms shake animation on that cell and shows an inline message: `"Cell is already taken."`
-- Form-field errors (FR-003) appear inline directly under the field, in a colour with ≥ 4.5:1 contrast, and prevent submission.
-- Errors are announced via `aria-live="assertive"` on a dedicated live region.
-- Errors do not duplicate or accumulate visually across successive invalid actions; only the latest message is shown.
+- Already-occupied cell click: shake animation plus `aria-live` message `"Cell is already taken — choose an empty cell."`
+- Invalid name in the name-entry form: an inline error appears below the field with a specific reason ("Name too long", "Name contains invalid characters", "That name is reserved", etc.).
+- Errors clear automatically once the user corrects the input.
 
 ---
 
 ### UI-006 · Game Result Announcement
 
 **Description:**
-The outcome of each round shall be announced with a prominent, visually distinct message.
+The outcome of each round shall be announced with a prominent, visually distinct message and an animated overlay.
 
 **Acceptance Criteria:**
-- Win message: `"🎉 <Player Name> (<Symbol>) wins! Congratulations!"` rendered in a modal-like end-of-round panel.
-- Draw message: `"It's a draw! Well played by both sides."`
-- The final board with the winning line marked (FR-012) is visible behind / above the panel.
-- The result is also written to the `aria-live` region for screen readers.
-- The end-of-round panel contains the round summary (FR-018) and replay options (FR-017).
+- Win: a centred overlay shows `"🎉 <Player Name> wins!"` with the winning themed symbol; the winning line is drawn through the three winning cells (FR-012).
+- Draw: a centred overlay shows `"It's a draw! Well played by both sides."`
+- The overlay does not block the board from view (it is positioned above the board with a semi-transparent backdrop).
+- The overlay includes a **Continue** button that dismisses it and reveals the round-summary panel (FR-018) with the replay options.
+- The result is also announced via the `aria-live="polite"` region (NFR-008).
 
 ---
 
-### UI-007 · Scoreboard Display
+### UI-007 · Scoreboard Display / Stats Dashboard
 
 **Description:**
-The score table shall be formatted for easy reading on every supported viewport.
+Scoreboard and stats views shall be formatted for easy reading on any screen size.
 
 **Acceptance Criteria:**
-- Columns: `Player`, `Wins`, `Losses`, `Draws`, `Played`.
-- A header row with sortable column headers (clicking a header re-sorts).
-- Default sort: descending by wins; secondary sort by fewer losses; tertiary by alphabetical name.
-- Players' display names use sanitised text rendering (TR-007).
-- Empty state: `"No scores recorded yet."` shown in place of the table.
-- The table is keyboard-navigable and properly labelled for screen readers (`<table>`, `<thead>`, `<tbody>`, `<th scope="col">`).
+- Scores are presented in an HTML `<table>` with a header row.
+- Columns for the basic scoreboard: `Player`, `Wins`, `Losses`, `Draws`, `Played`.
+- Default sort: descending by wins; secondary by fewer losses; tertiary alphabetical by name.
+- The Stats Dashboard (FR-W22) extends this with `Win Rate %`, `Current Streak`, `Best Streak`, plus the head-to-head and aggregate sections.
+- Tables are horizontally scrollable on narrow viewports rather than overflowing.
+- An "Empty state" message is shown when no scores exist.
 
 ---
 
@@ -675,50 +737,38 @@ The score table shall be formatted for easy reading on every supported viewport.
 A help screen shall be accessible from the main menu and shall describe gameplay in plain language.
 
 **Acceptance Criteria:**
-- Reachable in one click from the main menu (FR-001 option 5).
-- Contents include: rules of Tic Tac Toe; how to make a move (click, tap, or keyboard); descriptions of the three AI difficulty levels; the mid-round forfeit control (FR-008); how undo/redo works (FR-020); how match mode works (FR-022); how to change theme (FR-019); how to mute sound (FR-021); how to view and reset scores.
-- A `Close` / `Back to Menu` button returns to the main menu.
+- Reachable from main-menu (FR-001 option 5).
+- Contents include: rules of Tic Tac Toe, the cell-numbering convention `1`–`9`, descriptions of the three AI difficulty levels, the mid-round forfeit shortcut (FR-008 / `Esc`), keyboard controls (FR-W04), undo behaviour (FR-W20), how to switch themes (FR-W02), and how to mute (FR-W21).
+- A **Close** button returns the user to the main menu.
+- The screen is keyboard-navigable; `Esc` closes it.
 
 ---
 
-### UI-009 · Theme Picker (NEW in v2)
+### UI-009 · Theme Picker UI
 
 **Description:**
-The theme picker shall present the three themes as visual cards.
+The theme picker shall present the three themes with previews and apply a chosen theme instantly.
 
 **Acceptance Criteria:**
-- The picker is a modal or inline panel with three cards, each showing:
-  - Theme name (`Beach` / `Mountains` / `Desert`).
-  - A thumbnail preview of the background.
-  - A preview of the X and O symbols rendered in that theme.
-- The currently active theme has a `Selected` badge and a distinct outline.
-- Clicking a card activates that theme immediately (FR-019) and updates the selected indicator.
-- A `Close` button dismisses the picker.
+- Opens as a modal overlay or dedicated panel reachable from the main menu and from the persistent header theme button.
+- Three theme cards arranged horizontally on desktop, vertically on narrow mobile viewports.
+- Each card shows: theme name, a thumbnail image of the background, and a small inline display of the X/O symbols.
+- Clicking/tapping a card applies the theme immediately, persists the choice (FR-W02), and closes the picker.
+- The currently active theme card is visually marked as selected (e.g., border highlight + checkmark).
 
 ---
 
-### UI-010 · Match Progress Strip (NEW in v2)
+### UI-010 · Responsive Layout
 
 **Description:**
-When match mode (FR-022) is active, a progress strip shall summarise match status above the board.
+The UI shall adapt smoothly to a range of viewport sizes from ~320 px wide (small phones) to ≥ 1920 px (large desktops).
 
 **Acceptance Criteria:**
-- Shows: format label (e.g., `Best of 5`), running score (`Alice 2 — 1 Bob`, plus `(1 draw)` when applicable), and a row of dots/pills representing each round (one per round, coloured/icon-coded for Player 1 win, Player 2 win, or draw, with future rounds shown muted).
-- Updates immediately at the end of each round.
-- Hidden entirely when the user has chosen `Single round`.
-
----
-
-### UI-011 · Sound Mute Toggle (NEW in v2)
-
-**Description:**
-A persistent control shall allow the user to toggle sound at any time.
-
-**Acceptance Criteria:**
-- A speaker icon button is in the top bar of every view (menu, in-game, end-of-round, scoreboard, help).
-- The icon visually distinguishes muted (slashed speaker) from unmuted (speaker with waves).
-- The button has an `aria-label` of either `"Mute sound effects"` or `"Unmute sound effects"` matching its state.
-- The button is hidden if Web Audio is unavailable (FR-021).
+- A CSS-based responsive layout (Flexbox + Grid + media queries) reorganises menu and gameplay screens at breakpoints (e.g., 480 px, 768 px, 1024 px).
+- The board scales proportionally to the viewport (UI-002).
+- No horizontal scrolling appears at any supported viewport width.
+- Touch targets are at least 44×44 CSS pixels (FR-W04).
+- The theme picker becomes single-column below 600 px width.
 
 ---
 
@@ -727,88 +777,79 @@ A persistent control shall allow the user to toggle sound at any time.
 ### TR-001 · Languages and Runtime
 
 **Description:**
-The application shall be implemented in HTML5, CSS3, and ECMAScript 2015 (ES6) or newer JavaScript, with no compilation or bundling step.
+The game shall be implemented with vanilla web technologies only.
 
 **Acceptance Criteria:**
-- The codebase uses only features supported in evergreen browsers' latest two stable releases.
-- The entry point is `index.html` at the project root; double-clicking it opens a fully functional game.
-- ES modules are used (`<script type="module" src="src/main.js"></script>`). All modules use relative paths resolvable under `file://`.
-- No third-party runtime libraries are bundled. (Dev-only dependencies for testing — Jest, jsdom — are listed in `package.json` and are not required at runtime.)
-- The HTML document declares `<!DOCTYPE html>` and `<meta charset="utf-8">` and a responsive `<meta name="viewport">` tag.
+- HTML5 for markup.
+- CSS3 (including Custom Properties and Grid) for styling.
+- JavaScript ES2020 (vanilla, no transpilation) for logic. Modules use either standard ES modules (`<script type="module">`) **or** a single concatenated classic-script load order — whichever loads correctly under `file://` in all four target browsers (note: Chrome's `file://` ES-module restrictions favour classic scripts; choose accordingly during implementation).
+- No Node.js runtime is required to play the game — only to run tests.
 
 ---
 
 ### TR-002 · Dependencies
 
 **Description:**
-The runtime application shall have zero third-party dependencies; development dependencies shall be minimal and pinned.
+The game shall ship with zero runtime dependencies.
 
 **Acceptance Criteria:**
-- Runtime: zero npm packages, zero external scripts, zero external stylesheets, zero external fonts. (Web fonts may be inlined as `@font-face` from local files, or omitted in favour of system font stacks.)
-- Development: `package.json` declares `jest`, `jest-environment-jsdom`, and (optionally) a coverage reporter. Versions are pinned to exact patch releases.
-- A lockfile (`package-lock.json`) is committed.
+- `package.json` lists **devDependencies only**: `jest`, `jest-environment-jsdom`, `eslint` (and any helpers strictly required by these).
+- No runtime dependencies (`dependencies`) are declared.
+- All third-party dev tools are version-pinned (exact versions, not `^` ranges) for reproducibility.
 
 ---
 
 ### TR-003 · Code Architecture
 
 **Description:**
-The codebase shall follow a modular architecture with clear separation of concerns. There is no framework; vanilla JS modules orchestrate views.
+The codebase shall follow a modular architecture with strict separation of concerns.
 
 **Acceptance Criteria:**
+- Project layout:
 
-Directory layout (relative to project root):
+  ```
+  /
+  ├── index.html
+  ├── README.md
+  ├── package.json
+  ├── .eslintrc.json
+  ├── jest.config.js
+  ├── css/
+  │   ├── base.css
+  │   └── themes.css
+  ├── js/
+  │   ├── main.js          # entry: wires UI to game; DOM event listeners
+  │   ├── game.js          # game orchestration; turn management
+  │   ├── board.js         # pure board state; move application; win/draw checks
+  │   ├── player.js        # player factory / classes
+  │   ├── ai.js            # AI strategies (Easy/Medium/Hard); injectable RNG
+  │   ├── scoreManager.js  # localStorage load/save/migrate; schema validation
+  │   ├── themes.js        # theme registry; apply/persist active theme
+  │   ├── history.js       # move-history stack & undo (FR-W20)
+  │   ├── audio.js         # sound effects + mute toggle (FR-W21)
+  │   ├── stats.js         # stats dashboard computations (FR-W22)
+  │   ├── ui.js            # DOM rendering, modal management, animations
+  │   └── strings.js       # all user-facing strings (NFR-009)
+  ├── assets/
+  │   ├── themes/
+  │   │   ├── beach/        # background.jpg/svg, x.svg, o.svg, thumb.jpg
+  │   │   ├── mountains/    # ditto
+  │   │   └── desert/       # ditto
+  │   └── sounds/           # move.mp3, win.mp3, draw.mp3, invalid.mp3
+  └── tests/
+      ├── board.test.js
+      ├── ai.test.js
+      ├── scoreManager.test.js
+      ├── themes.test.js
+      ├── history.test.js
+      ├── stats.test.js
+      └── game.test.js
+  ```
 
-```
-index.html
-src/
-  main.js           # Entry point; wires UI to game controller
-  game.js           # Round/match orchestration; turn management; win/draw detection
-  board.js          # Pure board state; move application; win-line lookup
-  player.js         # Player factory: HumanPlayer, AIPlayer wrappers
-  ai.js             # AI strategies (Easy/Medium/Hard); accepts injectable PRNG
-  scoreManager.js   # localStorage-backed score load/save/reset; schema validation
-  history.js        # Undo/redo move-stack (FR-020)
-  match.js          # Match-mode (best-of-N) state machine (FR-022)
-  theme.js          # Theme registry, application, persistence (FR-019)
-  audio.js          # Web Audio sound effects + mute persistence (FR-021)
-  ui/
-    menu.js         # Main menu view
-    gameView.js     # In-game view (board, turn indicator, controls)
-    scoreView.js    # Scoreboard view
-    helpView.js     # Help view
-    themePicker.js  # Theme picker UI
-    modal.js        # Generic modal helper
-    toast.js        # Non-blocking notifications
-  strings.js        # All user-facing strings (NFR-009)
-  utils/
-    sanitize.js     # HTML-safe text helpers (TR-007)
-    rng.js          # Seedable pseudo-random number generator
-styles/
-  base.css          # Reset, layout, typography
-  components.css    # Buttons, cards, modals, board grid
-  themes.css        # [data-theme="beach|mountains|desert"] palettes
-assets/
-  images/           # Background images (one per theme; small JPG/PNG/SVG)
-  symbols/          # SVG symbols for X and O per theme (optional; Unicode fallbacks)
-tests/
-  board.test.js
-  ai.test.js
-  scoreManager.test.js
-  history.test.js
-  match.test.js
-  theme.test.js
-  audio.test.js
-  game.test.js
-  ui.test.js        # jsdom-based DOM behaviour tests
-package.json
-README.md
-```
-
-- Dependency direction: `main.js` orchestrates; views import from `game`/`scoreManager`/`theme`/`audio`/etc.; pure modules (`board`, `ai`, `history`, `match`, `scoreManager`) **never** import any `ui/` module or touch the DOM directly.
-- No global variables leak to `window`; everything is module-scoped.
+- Dependency direction: `main.js → ui.js → {game.js, themes.js, audio.js}`; `game.js → {board.js, player.js, ai.js, scoreManager.js, history.js}`; `stats.js` reads from `scoreManager.js`.
+- No DOM access is permitted in `board.js`, `ai.js`, `scoreManager.js`, `themes.js` (data layer), `history.js`, or `stats.js`. The DOM is touched only by `ui.js`, `main.js`, and `audio.js`.
+- The `Board` class accepts dimensions as constructor parameters (default 3×3) to ease future extension.
 - No circular imports.
-- All DOM mutations live in `src/ui/`. Pure modules return data only.
 
 ---
 
@@ -824,67 +865,92 @@ The Hard AI shall use the Minimax algorithm with alpha-beta pruning.
   - Human win: `depth - 10`
   - Draw: `0`
 - Alpha-beta pruning is implemented to reduce search.
-- Exposed as a single function in `ai.js`:
-  `getBestMove(board, aiSymbol, rng = defaultRng) -> number /* cell index 0..8 */`
-- The function is side-effect free (does not mutate the input board).
+- The algorithm is contained within `ai.js` and exposed via a single function: `getBestMove(board, aiSymbol, rng = Math.random)`.
+- The function is **side-effect-free** (does not mutate the input board).
 - Tie-break among equally-scored optimal moves: lowest-indexed cell (after the depth-aware score has resolved most ties).
 - Hard AI never loses, verified by §6's mandatory tests.
 
 ---
 
-### TR-005 · Score Persistence Format
+### TR-005 · Score Storage Format and Schema
 
 **Description:**
-Scores shall be persisted in `localStorage` as a structured, versioned JSON string.
+Scores shall be persisted in `localStorage` as a structured, versioned JSON document.
 
 **Acceptance Criteria:**
-- Storage key: `tictactoe_scores`.
-- JSON schema (v2):
+- Storage key: `tictactoe.scores.v2`.
+- Backup key (on corruption): `tictactoe.scores.v2.bak`.
+- Theme key: `tictactoe.theme`. Mute key: `tictactoe.muted`.
+- JSON schema (V2):
+
   ```json
   {
     "schema_version": 2,
     "players": {
-      "alice": { "display_name": "Alice", "wins": 3, "losses": 1, "draws": 1 },
-      "bob":   { "display_name": "Bob",   "wins": 1, "losses": 3, "draws": 1 },
-      "ai (hard)": { "display_name": "AI (Hard)", "wins": 5, "losses": 0, "draws": 2 }
+      "alice": {
+        "display_name": "Alice",
+        "wins": 3,
+        "losses": 1,
+        "draws": 1,
+        "current_streak": { "type": "W", "count": 2 },
+        "best_streak": 3,
+        "recent_outcomes": ["W","L","D","W","W"]
+      },
+      "ai (hard)": {
+        "display_name": "AI (Hard)",
+        "wins": 5, "losses": 0, "draws": 2,
+        "current_streak": { "type": "W", "count": 5 },
+        "best_streak": 5,
+        "recent_outcomes": ["W","D","W","W","D","W","W"]
+      }
+    },
+    "head_to_head": {
+      "alice|ai (hard)": { "a": "alice", "b": "ai (hard)", "a_wins": 1, "b_wins": 5, "draws": 2 }
     }
   }
   ```
-- Player keys are lowercase for case-insensitive lookup; original casing preserved in `display_name`.
-- On load, if `schema_version` is absent or unrecognised, the loader attempts a documented migration; if migration is impossible, the user is offered the choice (via toast + scoreboard banner) to reset rather than losing data silently.
-- Theme preference is persisted under a separate key `tictactoe_theme` (string: `"beach" | "mountains" | "desert"`).
-- Mute preference is persisted under a separate key `tictactoe_muted` (string: `"true" | "false"`).
-- Randomness used by the AI is injectable via a seedable PRNG instance (`utils/rng.js`); production code does not set a fixed seed, tests do.
+
+- Player keys are **lowercase** for case-insensitive lookup; original casing preserved in `display_name`.
+- `recent_outcomes` is an append-only list of single-character codes (`W`/`L`/`D`) with no fixed cap (a max of 100 entries per player is recommended; older entries truncated).
+- Head-to-head keys are constructed by sorting the two lowercased names alphabetically and joining with `|`.
+- A single in-memory write replaces the entire stored payload (NFR-006).
+- Migration: on load, if `schema_version === 1` (or absent) and the old v1 fields are detected, fields `current_streak`, `best_streak`, `recent_outcomes`, and the top-level `head_to_head` object are added with safe defaults; the migrated payload is re-saved with `schema_version = 2`.
+- The AI's randomness source is **injectable**: production passes `Math.random`, tests pass a seeded mulberry32 / xorshift RNG.
 
 ---
 
-### TR-006 · Storage Locations
+### TR-006 · Theme Registry
 
 **Description:**
-Persistent data shall live in well-defined `localStorage` keys, all prefixed with `tictactoe_`.
+Themes shall be defined declaratively in a single registry to make adding/maintaining themes simple.
 
 **Acceptance Criteria:**
-- Keys used by the application:
-  - `tictactoe_scores` — scores JSON (TR-005)
-  - `tictactoe_scores_backup` — backup snapshot written immediately before reset (FR-015)
-  - `tictactoe_scores_corrupt_backup` — quarantined invalid payload (FR-016)
-  - `tictactoe_theme` — current theme
-  - `tictactoe_muted` — mute state
-- The application never reads or writes any other storage.
-- `localStorage` failures are caught; the application degrades to in-memory state per FR-016 / NFR-003.
+- `themes.js` exports a registry array:
+
+  ```js
+  export const THEMES = [
+    { id: "beach",     name: "Beach",     cssClass: "theme-beach",     symbolX: "assets/themes/beach/x.svg",     symbolO: "assets/themes/beach/o.svg",     thumb: "assets/themes/beach/thumb.jpg" },
+    { id: "mountains", name: "Mountains", cssClass: "theme-mountains", symbolX: "assets/themes/mountains/x.svg", symbolO: "assets/themes/mountains/o.svg", thumb: "assets/themes/mountains/thumb.jpg" },
+    { id: "desert",    name: "Desert",    cssClass: "theme-desert",    symbolX: "assets/themes/desert/x.svg",    symbolO: "assets/themes/desert/o.svg",    thumb: "assets/themes/desert/thumb.jpg" }
+  ];
+  ```
+- Functions exported: `getActiveTheme()`, `setActiveTheme(id)`, `getThemeById(id)`, `listThemes()`.
+- `setActiveTheme(id)` updates `document.body.className`, persists to `localStorage`, and dispatches a `themechange` custom event for any subscribers (e.g., the symbol renderer).
+- An invalid theme id passed to `setActiveTheme` throws a descriptive Error (caught by callers, never reaches the user).
 
 ---
 
-### TR-007 · Input Handling and Sanitisation
+### TR-007 · Input Handling and Validation
 
 **Description:**
-All user-supplied input shall be validated and rendered safely to prevent XSS or DOM injection — particularly important since player names persist across sessions and could be rendered after a future code change.
+All user input shall be validated before processing.
 
 **Acceptance Criteria:**
-- All input fields (FR-003) are validated against a whitelist regex on input and on submit.
-- All player-supplied strings are rendered to the DOM via `textContent` or via `document.createTextNode` — never via `innerHTML`, never via template literals interpolated into `innerHTML`.
-- A reusable `sanitizeName(input)` helper in `utils/sanitize.js` trims, normalises whitespace, and rejects disallowed characters.
-- Form submission is blocked while any field is invalid; the submit button reflects this.
+- Reusable validation helpers exist in `ui.js`:
+  - `validatePlayerName(raw) → { ok: boolean, value?: string, error?: string }`
+  - `attemptMove(cellIndex) → boolean` (returns `false` if the cell is occupied or it is not a human's turn).
+- Form submissions are blocked (`event.preventDefault()`) until validation passes.
+- Keyboard event handlers ignore key presses when their corresponding action is not currently legal (e.g., `1`–`9` during the AI's turn).
 
 ---
 
@@ -894,181 +960,173 @@ All user-supplied input shall be validated and rendered safely to prevent XSS or
 The application shall handle runtime errors gracefully and log diagnostic information to the browser console.
 
 **Acceptance Criteria:**
-- All `localStorage`, audio, and image-load operations are wrapped in `try/catch` (or `.catch()` for promises).
-- A global `window.addEventListener('error', …)` and `window.addEventListener('unhandledrejection', …)` handler logs the error and displays a non-blocking toast (NFR-003).
-- A simple `logger` helper in `utils/` provides `info`, `warn`, `error` methods that write to the console; production builds (a `?debug=1` query string) toggle verbose logging.
-- Log output never appears in the visible UI under normal operation.
+- `window.addEventListener('error', ...)` and `window.addEventListener('unhandledrejection', ...)` are registered in `main.js`; both log a structured message to `console.error` and trigger the recovery toast (NFR-003).
+- All `localStorage` access is wrapped in `try/catch`.
+- Audio playback errors are caught and logged (FR-W21).
+- `console.log` is not used in production code; only `console.warn` and `console.error`.
+- A single global `DEBUG` flag in `main.js` (default `false`) gates verbose logging useful during development.
 
 ---
 
-### TR-009 · URL Query-String Options
-
-**Description:**
-The application shall recognise a small set of optional query-string parameters for power users and tests.
-
-**Acceptance Criteria:**
-- `?debug=1` — enables verbose console logging (TR-008).
-- `?theme=beach|mountains|desert` — overrides the persisted theme on load only (does not write to `localStorage`).
-- `?seed=<integer>` — seeds the AI PRNG, for reproducible manual playthroughs (does not affect production unseeded behaviour when omitted).
-- Unknown parameters are ignored silently.
-
----
-
-### TR-010 · Version Metadata
+### TR-009 · Versioning
 
 **Description:**
 The application shall expose a version number from a single authoritative source.
 
 **Acceptance Criteria:**
-- A constant `APP_VERSION` is exported from `src/version.js`.
-- The version follows Semantic Versioning (`MAJOR.MINOR.PATCH`); v2 begins at `2.0.0`.
+- `APP_VERSION` constant defined in `js/main.js` (or a small `js/version.js`), following Semantic Versioning (`MAJOR.MINOR.PATCH`), starting at `2.0.0`.
+- The version is shown in the footer of the main menu and in the help screen.
 - The same value populates the `version` field in `package.json`.
-- The footer of every view displays the version in muted text.
-- The version is referenced by the score-file `schema_version` migration logic (TR-005) for compatibility decisions.
+- The version is referenced by `scoreManager.js` schema-migration logic for compatibility decisions.
+
+---
+
+### TR-010 · Static-Hosting Compatibility
+
+**Description:**
+The site shall run identically when opened from `file://` and when served from any static HTTP server.
+
+**Acceptance Criteria:**
+- All asset references in HTML, CSS, and JS use **relative paths** (e.g., `assets/themes/beach/x.svg`, not `/assets/...`).
+- No `fetch`, `XMLHttpRequest`, or `import()` of local files at runtime (which fail under some browsers' `file://` security model).
+- If ES modules are used, they must be tested under `file://` in all four target browsers (NFR-005); if any browser fails, the implementation must fall back to classic concatenated scripts.
 
 ---
 
 ## 6. Testing Requirements
 
-### Test framework and execution
+### TR-T01 · Test Framework and Tooling
 
-- Framework: **Jest** (latest stable from supported range), configured with `testEnvironment: "jsdom"` for DOM-aware tests and the default node environment for pure-logic tests.
-- `npm test` runs the entire suite from the project root with no other configuration.
-- `npm test -- --coverage` produces a coverage report; CI-style invocation uses `--coverage --coverageThreshold='{"global":{"branches":90,"functions":90,"lines":90,"statements":90}}'` for the listed pure modules (per NFR-007).
-- Tests run without user interaction and without a real browser.
-- All AI tests inject a seeded PRNG via the `utils/rng.js` helper to obtain deterministic outcomes.
+**Description:**
+Automated unit tests shall be implemented using **Jest** with the **jsdom** environment.
 
-### Mandatory test coverage
+**Acceptance Criteria:**
+- `package.json` declares `jest` and `jest-environment-jsdom` as devDependencies.
+- `npm test` runs the entire test suite from the project root with no additional configuration.
+- `npm run test:coverage` runs Jest with `--coverage` and prints branch/line coverage summaries.
+- A CI-friendly invocation gates the build at branch coverage **≥ 90%** for `board.js`, `ai.js`, `scoreManager.js`, and `themes.js`.
+- Tests are organised one file per module under `tests/`, mirroring the `js/` directory layout.
 
-The following test cases are mandatory:
+### TR-T02 · Mandatory Test Cases
 
-**Board (`tests/board.test.js`)**
-- All 8 winning lines are detected for both `X` and `O`.
-- A full board with no winner is detected as a draw.
-- Move application on an occupied cell is rejected.
-- Move application off-board (negative or > 8) is rejected.
-- The board's `clone()` (or equivalent) returns an independent copy.
+**`board.js`:**
+- All 8 winning lines (3 rows, 3 columns, 2 diagonals) are detected for both `X` and `O`.
+- Draw detection on a full board with no winner.
+- Move-validation rejects: out-of-range indices, already-occupied cells, moves on a finished board.
+- Board is immutable from the caller's perspective: `applyMove` returns a new state or operates on an internal copy without leaking references.
 
-**AI (`tests/ai.test.js`)**
-- Easy AI never selects an occupied cell (property test over many seeds).
-- Medium AI takes an immediate win when available.
-- Medium AI blocks an immediate threat when no immediate win is available.
-- Medium AI takes the centre on an empty board.
-- Hard AI never loses against a random opponent over many seeds (≥ 200 games).
-- Hard AI never loses against an exhaustive opponent enumerating all legal opening sequences (or against a representative sample sufficient to demonstrate optimality).
-- Hard AI's first move on an empty board is a corner or centre (i.e., a known optimal opening).
-- All AI strategies are deterministic for a given seed.
+**`ai.js`:**
+- Easy AI: across many seeded runs, every chosen cell is empty (property test).
+- Medium AI: for each of the six priority rules, at least one fixture board exists where the rule is the deciding factor and the chosen move matches expectation.
+- Hard AI:
+  - Never loses against a random opponent across ≥ 1000 seeded games.
+  - Plays a known optimal opening response in every starting position (centre / corner / edge fixtures).
+  - Tie-break verifies lowest-index preference among equally-scored moves.
+- All AI functions accept an injected RNG and produce identical output for identical seeds.
 
-**Score Manager (`tests/scoreManager.test.js`)**
-- Save then reload yields identical data (round-trip).
-- A corrupted `localStorage` payload is quarantined and the in-memory store starts empty (FR-016).
-- A missing payload yields an empty store with a valid schema.
-- Reset clears the store, writes a backup, and preserves `schema_version`.
-- AI difficulty entries (`AI (Easy)`, `AI (Medium)`, `AI (Hard)`) are tracked separately.
-- Names are case-insensitive on lookup but preserve display casing.
+**`scoreManager.js`:**
+- Round-trip: save a non-trivial scores object → reload → deep-equals the original.
+- Corrupt JSON in `localStorage`: load returns empty scores AND moves the corrupt value to the `.bak` key.
+- v1 → v2 schema migration: a v1-shaped payload is upgraded with safe defaults and re-saved with `schema_version = 2`.
+- Updating a player's record after a win/loss/draw correctly increments counts, updates `current_streak`, and updates `best_streak` when surpassed.
+- Head-to-head records are correctly created and updated for new and existing pairs.
+- `localStorage` unavailable: methods catch the exception and fall back to the in-memory store without throwing.
 
-**History (Undo/Redo — `tests/history.test.js`)**
-- Undo on an HvH board reverts the last move and the active player.
-- Redo re-applies the most recently undone move.
-- Making a new move clears the redo stack.
-- Undo in HvAI mode reverts both the AI and the human's last move (one logical turn).
-- Undo and Redo are no-ops when the corresponding stack is empty.
-- Undo cannot revert past the start of the round.
-- Undo/redo do not modify the persistent score store.
+**`themes.js`:**
+- `listThemes()` returns exactly three entries with ids `beach`, `mountains`, `desert`.
+- `setActiveTheme('mountains')` updates `document.body.className` to include `theme-mountains` and persists to `localStorage`.
+- `setActiveTheme('invalid-id')` throws.
+- `getActiveTheme()` after a fresh load with no persisted theme returns the default (`beach`).
+- A `themechange` custom event is dispatched on every successful `setActiveTheme` call.
 
-**Match (`tests/match.test.js`)**
-- A best-of-3 match concludes after one player wins 2 rounds, regardless of remaining rounds.
-- A best-of-5 ending 2-2-1 (with one draw) is handled correctly.
-- A match where draws prevent either side from accumulating a majority ends in a match draw.
-- Per-round outcomes are still recorded in the persistent score store (integration with `scoreManager`).
-- Single-round mode (default) does not trigger any match-progress UI updates and disposes of match state immediately.
+**`history.js` (FR-W20):**
+- Pushing moves and undoing in HvH reverts one move and switches the active player.
+- Undoing in HvAI reverts two moves (AI + human) and leaves the human as the active player.
+- Undo on an empty history is a no-op (does not throw, does not crash).
+- Undo is rejected when the round is over.
 
-**Theme (`tests/theme.test.js`)**
-- Applying a theme sets `data-theme` on the root element to the correct value.
-- Switching themes mid-round preserves board state.
-- The persisted theme is loaded on init.
-- An unknown persisted theme falls back to the default (`beach`).
-- Each theme defines unique X and O symbols.
+**`stats.js` (FR-W22):**
+- Win-rate computation handles zero games (returns `0` or `"—"`, not `NaN`).
+- Current-streak computation correctly distinguishes W, L, D streaks.
+- Best-streak computation correctly identifies the longest historical W run.
+- Head-to-head aggregation across many rounds matches a brute-force reference computation on the same input data.
 
-**Audio (`tests/audio.test.js`)**
-- The mute toggle persists to `localStorage`.
-- When muted, sound-playing functions are no-ops (verified via spy on the AudioContext factory).
-- When the Web Audio API is unavailable, audio functions are no-ops and emit no errors.
-- Sound playback is gated until the first user gesture.
+**`game.js`:**
+- A full HvH round can be simulated end-to-end with mocked players, ending in the correct outcome and triggering exactly one score update.
+- A full HvAI round (Hard) ends in a draw or AI win — never a human win — across ≥ 100 random seeds.
+- Starting-player rotation flips correctly across consecutive rounds (FR-006).
+- Forfeit during a round produces no score change and resets game state.
 
-**Game controller (`tests/game.test.js`)**
-- Starting-player rotation alternates across rounds (FR-006).
-- Forfeit returns to the main menu without recording a score (FR-008).
-- Win and draw outcomes update the score store correctly.
-- Round summary stats (move count, duration) are produced.
+### TR-T03 · DOM-Touching Tests (jsdom)
 
-**UI (`tests/ui.test.js`, jsdom)**
-- Clicking an empty cell renders the active player's symbol there.
-- Clicking an occupied cell does not change board state and triggers the shake class.
-- Pressing Tab moves focus through the cells in row-major order.
-- The end-of-round panel renders the correct outcome message.
-- The theme picker, when activated, sets `data-theme` accordingly.
-- Player names are inserted into the DOM via `textContent` (not `innerHTML`); a test injects an XSS payload as a name and asserts no `<script>` is created (TR-007).
-- The `aria-live` turn announcer updates on turn change.
+- A small set of integration-flavoured tests verify that `ui.js` correctly renders the board after `applyMove` and updates the turn indicator. These tests run under the `jsdom` environment.
+- Theme application tests verify that `setActiveTheme` causes the expected CSS class to appear on `document.body` in jsdom.
 
-### Coverage gate
+### TR-T04 · Test Determinism
 
-- Combined branch coverage on `board`, `ai`, `scoreManager`, `history`, `match`, `theme`, and the pure parts of `game` is **≥ 90%**.
-- The pure-logic test files run in the default Jest (node) environment for speed; only `tests/ui.test.js` (and theme DOM tests) use `jsdom`.
+- All AI tests use a seeded RNG (e.g., mulberry32) injected into `getBestMove` and the Easy/Medium AI move pickers.
+- All time-dependent assertions (e.g., AI move latency) use Jest's fake timers to avoid wall-clock flakiness, **except** the latency-budget tests which use real timers and tolerate up to 2× the budget under CI noise (so 400 ms instead of 200 ms).
+- Tests that touch `localStorage` either run in jsdom (which provides a clean `localStorage` per test) or use a small in-memory shim with `beforeEach` reset.
+
+### TR-T05 · Continuous Validation
+
+- Linting (`eslint`) runs as part of `npm test` (`pretest` script).
+- A failed lint run fails the test command.
+- A coverage shortfall (< 90% on the four core modules) fails the test command.
 
 ---
 
 ## 7. Assumptions & Constraints
 
-| #   | Assumption / Constraint                                                                                                                                          |
-|-----|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| A1  | The user has a modern desktop or mobile browser per NFR-005.                                                                                                     |
-| A2  | `localStorage` is available and writable; if not, the game falls back to in-memory state with a one-time banner (FR-016).                                        |
-| A3  | Player names are unique within a session (case-insensitive); FR-003 enforces this.                                                                              |
-| A4  | The board size is fixed at 3×3 for v2; the `Board` module is parameterised internally to ease future extension.                                                  |
-| A5  | The application is single-tab; concurrent multi-tab access to `localStorage` may produce last-writer-wins behaviour. This is acceptable for v2.                  |
-| A6  | The names `AI`, `Computer`, and `AI (Easy/Medium/Hard)` (case-insensitive) are reserved for the system and rejected as human names (FR-003).                     |
-| A7  | The `performance.now()` clock is reliable for round-duration measurements (FR-018).                                                                              |
-| A8  | Browsers' autoplay policies require a user gesture before audio playback; FR-021 honours this by lazily creating the AudioContext.                               |
-| A9  | Background images per theme are small (each ≤ 300 KB) so total page weight stays modest; CSS gradient fallbacks cover image-load failure.                        |
-| A10 | The application is opened either via `file://` (double-click) or `http://`/`https://`; both work identically (NFR-005).                                          |
+| #   | Assumption / Constraint                                                                                                                                |
+|-----|--------------------------------------------------------------------------------------------------------------------------------------------------------|
+| A1  | The user has a modern browser (Chrome, Firefox, Edge, or Safari — latest two stable versions).                                                         |
+| A2  | The user's browser permits `localStorage` access. If not, scores are session-only with a warning (FR-016).                                             |
+| A3  | The user can open `index.html` from the local file system (`file://`) without browser-imposed CORS restrictions blocking local relative-path assets.   |
+| A4  | The board size is fixed at 3×3 for V2; the `Board` class is parameterised to ease future extension.                                                    |
+| A5  | Concurrent multi-tab access to the same `localStorage` key is out of scope; the last-write-wins. (Could be addressed via `storage` event in a future.) |
+| A6  | The reserved names `AI`, `Computer`, and `AI (Easy/Medium/Hard)` (case-insensitive) are rejected as human names (FR-003).                              |
+| A7  | All theme images and SVGs are bundled with the application; no remote/CDN assets.                                                                      |
+| A8  | The system clock is reliable enough for round-duration measurements (FR-018) and timestamps in the move history (FR-W20).                              |
+| A9  | Audio autoplay may be blocked by the browser until the first user interaction; this is accepted (FR-W21 mutes by default).                              |
+| A10 | No build step is permitted: the source files served are the source files written.                                                                       |
 
 ---
 
 ## 8. Out of Scope
 
-The following are explicitly **not** delivered in v2:
+The following are explicitly **not** delivered in V2:
 
-- **AI vs AI mode** — only HvH and HvAI are supported.
-- **Online or networked multiplayer.**
-- **User accounts or authentication.**
-- **Server-side persistence or syncing across devices.**
+- **Real-time online or networked multiplayer.**
+- **Server-side accounts, authentication, or cloud sync.**
+- **Native mobile (iOS/Android) apps.**
 - **Custom board sizes** (e.g., 4×4, 5×5) — fixed at 3×3.
-- **Custom user-supplied themes.** Only the three built-in themes are selectable.
-- **Localisation / internationalisation** — English only; codebase is structured for translation (NFR-009).
-- **Animated background scenes or video.** Backgrounds are static images / CSS gradients.
-- **Persistence of in-progress matches** — closing the page mid-match abandons it (FR-022).
-- **Persistence of round-level statistics** (FR-018's stats block is display-only).
-- **Forfeit-as-loss semantics** — forfeits (FR-008) are not recorded.
-- **Build tooling, transpilers, or framework runtimes** — vanilla JS only.
+- **Localisation** — English only for V2; codebase is structured for translation (NFR-009).
+- **AI vs AI mode** — only HvH and HvAI are supported.
+- **Build tools, bundlers, transpilers** (Webpack, Vite, Babel, TypeScript).
+- **Runtime third-party JS frameworks** (React, Vue, jQuery, etc.).
+- **Per-theme sound packs** — V2 ships one shared sound pack (FR-W21).
+- **More than three themes** — V2 ships exactly Beach, Mountains, Desert (FR-W02).
+- **More than three new features beyond v1** — V2 ships exactly Move History/Undo, Sound Effects, and Stats Dashboard (§2.4).
+- **Forfeit-as-loss semantics** — forfeits remain unrecorded (FR-008), unchanged from v1.
+- **Spectator mode / replay export.**
 
 ---
 
 ## 9. Glossary
 
-- **HvH** — Human vs Human local play.
+- **HvH** — Human vs Human local play (both players share the same browser).
 - **HvAI** — Human vs AI play.
 - **Round** — A single game played from empty board to win or draw.
-- **Match** — A best-of-N sequence of rounds (FR-022).
-- **Session** — The period from loading the page to closing/refreshing the tab.
-- **Theme** — One of three named visual variants (Beach, Mountains, Desert) controlling background and X/O symbols (FR-019).
-- **Minimax** — A recursive decision algorithm for two-player zero-sum games.
-- **Alpha-beta pruning** — An optimisation of Minimax that skips branches proven irrelevant.
+- **Session** — The period from loading the page to closing the tab. Scores persist across sessions via `localStorage`.
+- **Minimax** — A recursive decision algorithm for two-player zero-sum games selecting the move that minimises the opponent's maximum payoff.
+- **Alpha-beta pruning** — An optimisation of Minimax that skips branches proven irrelevant to the final decision.
 - **Forfeit** — A player's voluntary mid-round abandonment (FR-008); not recorded as a win/loss.
-- **Undo / Redo** — Step-back and step-forward operations within an in-progress round (FR-020).
-- **Schema version** — Integer field in the score payload identifying the data-format version, enabling forward-compatible migration (TR-005).
-- **Reference machine** — Performance baseline defined in NFR-001.
-- **PRNG** — Pseudo-random number generator. Seedable via `utils/rng.js` for deterministic tests.
+- **Theme** — A bundled set of visual assets (background, X symbol, O symbol, accent colours) selectable from the theme picker (FR-W02).
+- **Schema version** — Integer field in the persisted scores payload identifying the data-format version, enabling forward-compatible migration (TR-005).
+- **Reference device** — Performance baseline defined in NFR-001: dual-core 2 GHz CPU, 4 GB RAM, latest Chrome on desktop; or a mid-range smartphone (≥ 2018) on mobile.
+- **jsdom** — A pure-JavaScript implementation of the DOM used by Jest to test DOM-touching code without a real browser.
+- **`localStorage`** — Browser-provided synchronous key–value store, scoped per origin, persisting across sessions.
 
 ---
 

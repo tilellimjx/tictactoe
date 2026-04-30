@@ -1,6 +1,15 @@
-/* Tic Tac Toe v2 — game logic, AI, score persistence, undo/redo, match mode, themes, audio.
+/* Tic Tac Toe v2 — game logic, AI, score persistence, undo, audio, themes, stats.
+ *
  * Vanilla ES6+; no build step. Loaded as a plain <script> in index.html.
  * Safe to require() from Jest (jsdom): UI startup is gated by DOMContentLoaded.
+ *
+ * The three NEW V2 features (per requirements §2.4):
+ *   1. FR-W20 — Move History with Undo
+ *   2. FR-W21 — Sound Effects with Mute Toggle
+ *   3. FR-W22 — In-Game Stats Dashboard (win-rate, streaks, head-to-head)
+ *
+ * The three carried-over themes (Beach, Mountains, Desert — FR-W02) are
+ * NOT counted as a "new" feature; they replace the v1 console UI's flat look.
  */
 
 'use strict';
@@ -18,14 +27,15 @@ const RESERVED_NAMES = ['ai', 'computer', 'ai (easy)', 'ai (medium)', 'ai (hard)
 const NAME_REGEX = /^[A-Za-z0-9 _-]{1,20}$/;
 
 const STORAGE_KEYS = {
-  scores: 'tictactoe_scores',
-  scoresBackup: 'tictactoe_scores_backup',
-  scoresCorrupt: 'tictactoe_scores_corrupt_backup',
-  theme: 'tictactoe_theme',
-  muted: 'tictactoe_muted'
+  scores: 'tictactoe.scores.v2',
+  scoresBackup: 'tictactoe.scores.v2.bak',
+  theme: 'tictactoe.theme',
+  muted: 'tictactoe.muted'
 };
 
 const SCHEMA_VERSION = 2;
+const RECENT_OUTCOMES_CAP = 100;
+
 const VALID_THEMES = ['beach', 'mountains', 'desert'];
 const DEFAULT_THEME = 'beach';
 
@@ -108,7 +118,7 @@ class Board {
 }
 
 /* ============================================================
- * AI strategies
+ * AI strategies — Easy, Medium, Hard (Minimax)
  * ============================================================ */
 const AI = {
   /** Easy: random over empty cells. */
@@ -152,7 +162,7 @@ const AI = {
     return empties[Math.floor(r * empties.length)];
   },
 
-  /** Hard: minimax with alpha-beta and depth-aware scoring. */
+  /** Hard: minimax with alpha-beta pruning and depth-aware scoring. */
   hard(board, aiSymbol) {
     const opp = aiSymbol === 'X' ? 'O' : 'X';
 
@@ -205,7 +215,7 @@ const AI = {
         bestScore = score;
         bestMove = i;
       }
-      // Tie-break: lowest index already wins because we don't replace on equality.
+      // Tie-break: lowest index wins because we don't replace on equality.
     }
     return bestMove;
   },
@@ -221,18 +231,21 @@ const AI = {
 };
 
 /* ============================================================
- * Score Manager — localStorage-backed persistence
+ * Score Manager — localStorage-backed persistence.
+ *
+ * Schema v2 extends the v1 flat-counter store with per-player
+ * recent_outcomes / current_streak / best_streak fields and a
+ * top-level head_to_head map (TR-005 / FR-W22).
  * ============================================================ */
 class ScoreManager {
   constructor(storage) {
-    // storage is a localStorage-like object with getItem/setItem/removeItem.
     this.storage = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
     this.fallback = false;
     this.data = this._loadOrInit();
   }
 
   _emptyStore() {
-    return { schema_version: SCHEMA_VERSION, players: {} };
+    return { schema_version: SCHEMA_VERSION, players: {}, head_to_head: {} };
   }
 
   _isValid(obj) {
@@ -250,6 +263,27 @@ class ScoreManager {
     return true;
   }
 
+  _migrate(obj) {
+    // v1 → v2 migration: fill in missing streak / head-to-head fields.
+    if (!obj || typeof obj !== 'object') return obj;
+    if (!obj.head_to_head || typeof obj.head_to_head !== 'object') {
+      obj.head_to_head = {};
+    }
+    if (obj.players && typeof obj.players === 'object') {
+      for (const key of Object.keys(obj.players)) {
+        const p = obj.players[key];
+        if (!p) continue;
+        if (!Array.isArray(p.recent_outcomes)) p.recent_outcomes = [];
+        if (!p.current_streak || typeof p.current_streak !== 'object') {
+          p.current_streak = { type: null, count: 0 };
+        }
+        if (typeof p.best_streak !== 'number') p.best_streak = 0;
+      }
+    }
+    obj.schema_version = SCHEMA_VERSION;
+    return obj;
+  }
+
   _loadOrInit() {
     if (!this.storage) {
       this.fallback = true;
@@ -265,18 +299,22 @@ class ScoreManager {
     if (raw === null || raw === undefined) {
       return this._emptyStore();
     }
+    let parsed;
     try {
-      const parsed = JSON.parse(raw);
-      if (this._isValid(parsed)) {
-        return parsed;
-      }
-      // Quarantine
-      try { this.storage.setItem(STORAGE_KEYS.scoresCorrupt, raw); } catch (_) {}
-      return this._emptyStore();
+      parsed = JSON.parse(raw);
     } catch (_) {
-      try { this.storage.setItem(STORAGE_KEYS.scoresCorrupt, raw); } catch (_) {}
+      try { this.storage.setItem(STORAGE_KEYS.scoresBackup, raw); } catch (_) {}
       return this._emptyStore();
     }
+    if (!this._isValid(parsed)) {
+      try { this.storage.setItem(STORAGE_KEYS.scoresBackup, raw); } catch (_) {}
+      return this._emptyStore();
+    }
+    // Valid base — migrate forward to fill any missing v2 fields.
+    const migrated = this._migrate(parsed);
+    // Persist the migration so subsequent loads are clean.
+    try { this.storage.setItem(STORAGE_KEYS.scores, JSON.stringify(migrated)); } catch (_) {}
+    return migrated;
   }
 
   _save() {
@@ -295,9 +333,58 @@ class ScoreManager {
   _ensurePlayer(name) {
     const key = this._key(name);
     if (!this.data.players[key]) {
-      this.data.players[key] = { display_name: name, wins: 0, losses: 0, draws: 0 };
+      this.data.players[key] = {
+        display_name: name,
+        wins: 0,
+        losses: 0,
+        draws: 0,
+        recent_outcomes: [],
+        current_streak: { type: null, count: 0 },
+        best_streak: 0
+      };
     }
     return this.data.players[key];
+  }
+
+  _appendOutcome(player, code) {
+    if (!Array.isArray(player.recent_outcomes)) player.recent_outcomes = [];
+    player.recent_outcomes.push(code);
+    if (player.recent_outcomes.length > RECENT_OUTCOMES_CAP) {
+      player.recent_outcomes.splice(0, player.recent_outcomes.length - RECENT_OUTCOMES_CAP);
+    }
+    if (!player.current_streak) player.current_streak = { type: null, count: 0 };
+    if (player.current_streak.type === code) {
+      player.current_streak.count += 1;
+    } else {
+      player.current_streak = { type: code, count: 1 };
+    }
+    if (code === 'W') {
+      if (typeof player.best_streak !== 'number') player.best_streak = 0;
+      if (player.current_streak.count > player.best_streak) {
+        player.best_streak = player.current_streak.count;
+      }
+    }
+  }
+
+  _h2hKey(a, b) {
+    const ka = this._key(a);
+    const kb = this._key(b);
+    return [ka, kb].sort().join('|');
+  }
+
+  _ensureH2H(a, b) {
+    if (!this.data.head_to_head) this.data.head_to_head = {};
+    const ka = this._key(a);
+    const kb = this._key(b);
+    const [first, second] = [ka, kb].sort();
+    const key = `${first}|${second}`;
+    if (!this.data.head_to_head[key]) {
+      this.data.head_to_head[key] = {
+        a: first, b: second,
+        a_wins: 0, b_wins: 0, draws: 0
+      };
+    }
+    return this.data.head_to_head[key];
   }
 
   recordWin(winner, loser) {
@@ -305,6 +392,11 @@ class ScoreManager {
     const l = this._ensurePlayer(loser);
     w.wins += 1;
     l.losses += 1;
+    this._appendOutcome(w, 'W');
+    this._appendOutcome(l, 'L');
+    const h2h = this._ensureH2H(winner, loser);
+    if (h2h.a === this._key(winner)) h2h.a_wins += 1;
+    else h2h.b_wins += 1;
     this._save();
   }
 
@@ -313,6 +405,10 @@ class ScoreManager {
     const b = this._ensurePlayer(p2);
     a.draws += 1;
     b.draws += 1;
+    this._appendOutcome(a, 'D');
+    this._appendOutcome(b, 'D');
+    const h2h = this._ensureH2H(p1, p2);
+    h2h.draws += 1;
     this._save();
   }
 
@@ -350,90 +446,146 @@ class ScoreManager {
 }
 
 /* ============================================================
- * Move history — undo/redo
+ * Stats Dashboard helpers (FR-W22)
+ *
+ * Pure functions over a ScoreManager-shaped payload — no DOM.
+ * ============================================================ */
+const Stats = {
+  /** Per-player overview rows including win-rate %. */
+  perPlayerRows(data) {
+    if (!data || !data.players) return [];
+    return Object.keys(data.players).map(key => {
+      const p = data.players[key];
+      const total = (p.wins || 0) + (p.losses || 0) + (p.draws || 0);
+      const winRate = total === 0 ? 0 : (p.wins / total) * 100;
+      return {
+        key,
+        display_name: p.display_name,
+        wins: p.wins || 0,
+        losses: p.losses || 0,
+        draws: p.draws || 0,
+        played: total,
+        win_rate: winRate,
+        current_streak: p.current_streak || { type: null, count: 0 },
+        best_streak: p.best_streak || 0
+      };
+    });
+  },
+
+  /** Compute current streak from a recent_outcomes-style array. */
+  computeCurrentStreak(outcomes) {
+    if (!Array.isArray(outcomes) || outcomes.length === 0) {
+      return { type: null, count: 0 };
+    }
+    const last = outcomes[outcomes.length - 1];
+    let count = 0;
+    for (let i = outcomes.length - 1; i >= 0; i--) {
+      if (outcomes[i] === last) count += 1;
+      else break;
+    }
+    return { type: last, count };
+  },
+
+  /** Compute best (longest) historical winning streak from outcomes. */
+  computeBestWinStreak(outcomes) {
+    if (!Array.isArray(outcomes)) return 0;
+    let best = 0, run = 0;
+    for (const c of outcomes) {
+      if (c === 'W') { run += 1; if (run > best) best = run; }
+      else run = 0;
+    }
+    return best;
+  },
+
+  /** Format a streak object as e.g. "W3" / "L2" / "D1" / "—". */
+  formatStreak(streak) {
+    if (!streak || !streak.type || !streak.count) return '—';
+    return `${streak.type}${streak.count}`;
+  },
+
+  /** Format a win rate; 0 games → "—". */
+  formatWinRate(played, winRate) {
+    if (!played) return '—';
+    return `${winRate.toFixed(1)}%`;
+  },
+
+  /** Aggregate: total rounds played all-time, total draws. */
+  aggregateRounds(data) {
+    if (!data || !data.players) return { totalRounds: 0, totalDraws: 0 };
+    let wins = 0, draws = 0;
+    for (const key of Object.keys(data.players)) {
+      const p = data.players[key];
+      wins += (p.wins || 0);
+      draws += (p.draws || 0);
+    }
+    // Each round has exactly one winner OR is a draw counted on both players,
+    // so totalRounds = sum(wins) + sum(draws)/2.
+    return {
+      totalRounds: wins + Math.floor(draws / 2),
+      totalDraws: Math.floor(draws / 2)
+    };
+  },
+
+  /** Head-to-head rows from a head_to_head map. */
+  headToHeadRows(data) {
+    if (!data || !data.head_to_head) return [];
+    const rows = [];
+    const players = (data && data.players) || {};
+    for (const key of Object.keys(data.head_to_head)) {
+      const r = data.head_to_head[key];
+      const aName = (players[r.a] && players[r.a].display_name) || r.a;
+      const bName = (players[r.b] && players[r.b].display_name) || r.b;
+      rows.push({
+        key, a_key: r.a, b_key: r.b,
+        a_name: aName, b_name: bName,
+        a_wins: r.a_wins || 0,
+        b_wins: r.b_wins || 0,
+        draws: r.draws || 0
+      });
+    }
+    return rows;
+  },
+
+  /** Sort overview rows by a column key, ascending or descending. */
+  sortRows(rows, column, asc) {
+    const dir = asc ? 1 : -1;
+    const out = rows.slice();
+    out.sort((x, y) => {
+      let xv = x[column];
+      let yv = y[column];
+      if (xv == null) xv = '';
+      if (yv == null) yv = '';
+      if (typeof xv === 'string' && typeof yv === 'string') {
+        return xv.localeCompare(yv) * dir;
+      }
+      return (xv - yv) * dir;
+    });
+    return out;
+  }
+};
+
+/* ============================================================
+ * Move history — undo (FR-W20)
  * ============================================================ */
 class HistoryManager {
   constructor() {
-    this.undoStack = []; // entries: { index, symbol }
-    this.redoStack = [];
+    this.undoStack = []; // entries: { index, symbol, player, timestamp }
   }
   push(move) {
     this.undoStack.push(move);
-    this.redoStack.length = 0;
   }
   canUndo() { return this.undoStack.length > 0; }
-  canRedo() { return this.redoStack.length > 0; }
   undo() {
     if (!this.canUndo()) return null;
-    const m = this.undoStack.pop();
-    this.redoStack.push(m);
-    return m;
+    return this.undoStack.pop();
   }
-  redo() {
-    if (!this.canRedo()) return null;
-    const m = this.redoStack.pop();
-    this.undoStack.push(m);
-    return m;
-  }
-  clear() {
-    this.undoStack.length = 0;
-    this.redoStack.length = 0;
-  }
+  size() { return this.undoStack.length; }
+  clear() { this.undoStack.length = 0; }
+  toArray() { return this.undoStack.slice(); }
 }
 
 /* ============================================================
- * Match (best-of-N) state machine
- * ============================================================ */
-class Match {
-  constructor(length, p1Name, p2Name) {
-    this.length = Math.max(1, parseInt(length, 10) || 1);
-    this.p1 = p1Name;
-    this.p2 = p2Name;
-    this.rounds = []; // { winner: name|null (null=draw) }
-    this.scoreP1 = 0;
-    this.scoreP2 = 0;
-    this.draws = 0;
-  }
-
-  isMultiRound() {
-    return this.length > 1;
-  }
-
-  recordRound(winnerName) {
-    if (winnerName === this.p1) {
-      this.scoreP1 += 1;
-      this.rounds.push({ winner: this.p1 });
-    } else if (winnerName === this.p2) {
-      this.scoreP2 += 1;
-      this.rounds.push({ winner: this.p2 });
-    } else {
-      this.draws += 1;
-      this.rounds.push({ winner: null });
-    }
-  }
-
-  isComplete() {
-    if (!this.isMultiRound()) return this.rounds.length >= 1;
-    const needed = Math.floor(this.length / 2) + 1;
-    if (this.scoreP1 >= needed || this.scoreP2 >= needed) return true;
-    if (this.rounds.length >= this.length) return true;
-    // Cannot-catch-up condition: even if remaining rounds all go to trailer, leader still wins.
-    const remaining = this.length - this.rounds.length;
-    if (this.scoreP1 > this.scoreP2 + remaining) return true;
-    if (this.scoreP2 > this.scoreP1 + remaining) return true;
-    return false;
-  }
-
-  /** Winner name, or null for draw. Only meaningful when isComplete() is true. */
-  winner() {
-    if (this.scoreP1 > this.scoreP2) return this.p1;
-    if (this.scoreP2 > this.scoreP1) return this.p2;
-    return null;
-  }
-}
-
-/* ============================================================
- * Theme manager
+ * Theme manager (FR-W02)
  * ============================================================ */
 const ThemeManager = {
   apply(theme, doc, linkEl, storage) {
@@ -462,18 +614,20 @@ const ThemeManager = {
 };
 
 /* ============================================================
- * Audio manager (procedural Web Audio; mute persisted)
+ * Audio manager (FR-W21) — procedural Web Audio; mute persisted
  * ============================================================ */
 class AudioManager {
   constructor(storage) {
     this.storage = storage;
-    this.muted = false;
+    // Default = muted on first run (per FR-W21).
+    this.muted = true;
     this.firstGesture = false;
     this.ctx = null;
     if (storage) {
       try {
         const v = storage.getItem(STORAGE_KEYS.muted);
-        this.muted = v === 'true';
+        if (v === 'false') this.muted = false;
+        else if (v === 'true') this.muted = true;
       } catch (_) {}
     }
     this.available = typeof globalThis !== 'undefined' &&
@@ -523,7 +677,9 @@ class AudioManager {
       osc.connect(gain).connect(this.ctx.destination);
       osc.start();
       osc.stop(this.ctx.currentTime + duration + 0.02);
-    } catch (_) { /* swallow */ }
+    } catch (e) {
+      console.error('audio playback error:', e);
+    }
   }
 
   playMove(symbol) { this._tone(symbol === 'X' ? 660 : 440, 0.12, 'sine'); }
@@ -568,13 +724,12 @@ class GameController {
     this.firstPlayer = 1;          // 1 or 2 — moves first this round (plays X)
     this.currentPlayer = 1;
     this.symbols = { 1: 'X', 2: 'O' };
-    this.match = null;
     this.roundOver = false;
     this.movesPlayed = 0;
     this.rng = opts.rng || Math.random;
   }
 
-  configure({ mode, difficulty, p1, p2, matchLength }) {
+  configure({ mode, difficulty, p1, p2 }) {
     this.mode = mode === 'hvai' ? 'hvai' : 'hvh';
     this.difficulty = difficulty || 'easy';
     this.p1 = p1 || 'Player 1';
@@ -584,7 +739,6 @@ class GameController {
       this.p2 = p2 || 'Player 2';
     }
     this.firstPlayer = 1;
-    this.match = new Match(matchLength || 1, this.p1, this.p2);
     this.startRound();
   }
 
@@ -616,14 +770,19 @@ class GameController {
     return this.mode === 'hvai' && this.currentPlayer === 2;
   }
 
-  /** Human or AI move. Returns { ok, outcome }. */
+  /** Apply a move for the current player. Returns { ok, outcome|reason }. */
   applyMove(index) {
     if (this.roundOver) return { ok: false, reason: 'round-over' };
     const symbol = this.currentSymbol();
     if (!this.board.applyMove(index, symbol)) {
       return { ok: false, reason: 'invalid' };
     }
-    this.history.push({ index, symbol, player: this.currentPlayer });
+    this.history.push({
+      index, symbol,
+      player: this.currentPlayer,
+      playerName: this.currentPlayerName(),
+      timestamp: Date.now()
+    });
     this.movesPlayed += 1;
     const outcome = this.board.getOutcome();
     if (outcome) {
@@ -643,7 +802,13 @@ class GameController {
     return { index: idx, result: this.applyMove(idx) };
   }
 
-  /** Undo; in HvAI mode, undoes both AI's last move and the human's previous move. */
+  /**
+   * FR-W20 Undo:
+   *   - HvH mode: revert exactly one move.
+   *   - HvAI mode: revert two moves (the AI's last move + the human's preceding move),
+   *     so the human is returned to their decision point.
+   *   - Disabled when history is empty or the round is over.
+   */
   undo() {
     if (this.roundOver) return false;
     if (!this.history.canUndo()) return false;
@@ -660,26 +825,9 @@ class GameController {
     return undone > 0;
   }
 
-  redo() {
-    if (this.roundOver) return false;
-    if (!this.history.canRedo()) return false;
-    let redone = 0;
-    const steps = this.mode === 'hvai' ? 2 : 1;
-    for (let i = 0; i < steps; i++) {
-      if (!this.history.canRedo()) break;
-      const move = this.history.redo();
-      this.board.applyMove(move.index, move.symbol);
-      this.currentPlayer = move.player === 1 ? 2 : 1;
-      this.movesPlayed += 1;
-      redone += 1;
-    }
-    return redone > 0;
-  }
-
   _recordOutcome(outcome) {
     if (outcome === 'draw') {
       this.scoreManager.recordDraw(this.p1, this.p2);
-      if (this.match) this.match.recordRound(null);
       return;
     }
     // outcome is 'X' or 'O' — figure out which player owns it.
@@ -687,12 +835,16 @@ class GameController {
     const winnerName = winningPlayer === 1 ? this.p1 : this.p2;
     const loserName = winningPlayer === 1 ? this.p2 : this.p1;
     this.scoreManager.recordWin(winnerName, loserName);
-    if (this.match) this.match.recordRound(winnerName);
   }
 
   startNextRound() {
     this.rotateFirstPlayer();
     this.startRound();
+  }
+
+  forfeit() {
+    // Forfeits are NOT recorded; just reset round state.
+    this.roundOver = true;
   }
 }
 
@@ -707,8 +859,8 @@ class UIController {
     this.audio = new AudioManager(this.storage);
     this.controller = new GameController({ scoreManager: this.scoreManager });
     this.themeLink = doc.getElementById('theme-link');
-    this.matchLength = 1;
     this.roundStart = 0;
+    this.statsSort = { column: 'wins', asc: false };
     this._wire();
     this._initTheme();
     this._renderTopPlayer();
@@ -731,10 +883,6 @@ class UIController {
   _renderMute() {
     const btn = this.doc.getElementById('mute-btn');
     if (!btn) return;
-    if (!this.audio.available) {
-      btn.style.display = 'none';
-      return;
-    }
     btn.textContent = this.audio.muted ? '🔇' : '🔊';
     btn.setAttribute('aria-label', this.audio.muted ? 'Unmute sound effects' : 'Mute sound effects');
   }
@@ -753,11 +901,10 @@ class UIController {
         ThemeManager.apply(t, this.doc, this.themeLink, this.storage);
         this._highlightThemeBtn(t);
         this.audio.playThemeChange();
-        // Re-render board cells (no-op since CSS does the work)
       });
     });
 
-    // Mute
+    // Mute toggle
     const muteBtn = $('mute-btn');
     if (muteBtn) {
       muteBtn.addEventListener('click', () => {
@@ -769,10 +916,9 @@ class UIController {
     // Menu
     $('btn-hvh').addEventListener('click', () => { this.pendingMode = 'hvh'; this._show('view-names'); this._renderNames(); });
     $('btn-hvai').addEventListener('click', () => { this.pendingMode = 'hvai'; this._show('view-difficulty'); });
-    $('btn-scores').addEventListener('click', () => { this._renderScores(); this._show('view-scores'); });
+    $('btn-stats').addEventListener('click', () => { this._renderStats(); this._show('view-stats'); });
     $('btn-reset').addEventListener('click', () => this._confirmReset());
     $('btn-help').addEventListener('click', () => this._show('view-help'));
-    $('match-length').addEventListener('change', (e) => { this.matchLength = parseInt(e.target.value, 10) || 1; });
 
     // Difficulty
     this.doc.querySelectorAll('.diff-btn').forEach(btn => {
@@ -800,30 +946,16 @@ class UIController {
     });
 
     $('btn-undo').addEventListener('click', () => this._handleUndo());
-    $('btn-redo').addEventListener('click', () => this._handleRedo());
     $('btn-forfeit').addEventListener('click', () => this._confirmForfeit());
     $('btn-menu').addEventListener('click', () => this._show('view-menu'));
 
-    // End
+    // End-of-round panel
     $('btn-play-again').addEventListener('click', () => this._playAgain());
-    $('btn-next-round').addEventListener('click', () => this._playAgain());
     $('btn-end-menu').addEventListener('click', () => this._show('view-menu'));
+    $('btn-end-stats').addEventListener('click', () => { this._renderStats(); this._show('view-stats'); });
 
-    // Match end
-    $('btn-new-match').addEventListener('click', () => {
-      this.controller.configure({
-        mode: this.controller.mode,
-        difficulty: this.controller.difficulty,
-        p1: this.controller.p1,
-        p2: this.controller.p2,
-        matchLength: this.matchLength
-      });
-      this._enterGame();
-    });
-    $('btn-match-menu').addEventListener('click', () => this._show('view-menu'));
-
-    // Scores back / help back
-    $('scores-back').addEventListener('click', () => this._show('view-menu'));
+    // Stats / help back
+    $('stats-back').addEventListener('click', () => this._show('view-menu'));
     $('help-back').addEventListener('click', () => this._show('view-menu'));
 
     // Modal
@@ -831,16 +963,29 @@ class UIController {
 
     // Keyboard shortcuts
     this.doc.addEventListener('keydown', (e) => {
-      if (this.doc.getElementById('view-game').classList.contains('hidden')) return;
-      const isMod = e.ctrlKey || e.metaKey;
-      if (isMod && e.key.toLowerCase() === 'z' && !e.shiftKey) {
-        e.preventDefault();
-        this._handleUndo();
-      } else if (isMod && ((e.key.toLowerCase() === 'z' && e.shiftKey) || e.key.toLowerCase() === 'y')) {
-        e.preventDefault();
-        this._handleRedo();
+      const gameView = this.doc.getElementById('view-game');
+      if (gameView && !gameView.classList.contains('hidden')) {
+        const isMod = e.ctrlKey || e.metaKey;
+        if (isMod && e.key && e.key.toLowerCase() === 'z') {
+          e.preventDefault();
+          this._handleUndo();
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          this._confirmForfeit();
+        } else if (e.key && /^[1-9]$/.test(e.key)) {
+          const idx = parseInt(e.key, 10) - 1;
+          this._humanCellClick(idx);
+        }
       }
     });
+
+    // Persist on unload
+    if (typeof window !== 'undefined') {
+      window.addEventListener('beforeunload', () => {
+        // ScoreManager._save is called after each round; this is just a safety net.
+        try { this.scoreManager._save(); } catch (_) {}
+      });
+    }
   }
 
   _renderNames() {
@@ -875,8 +1020,7 @@ class UIController {
       mode: this.pendingMode,
       difficulty: this.pendingDifficulty,
       p1: r1.value,
-      p2: p2Name,
-      matchLength: this.matchLength
+      p2: p2Name
     });
     this._enterGame();
   }
@@ -895,7 +1039,7 @@ class UIController {
       const v = this.controller.board.cells[i];
       if (v) {
         cell.setAttribute('data-symbol', v);
-        cell.textContent = '';  // CSS ::before renders symbol
+        cell.textContent = '';  // CSS ::before renders the themed symbol
       } else {
         cell.removeAttribute('data-symbol');
         cell.textContent = '';
@@ -917,24 +1061,8 @@ class UIController {
       const sym = this.controller.currentSymbol();
       banner.textContent = `${name}'s turn (${sym})`;
     }
-    this.doc.getElementById('btn-undo').disabled = !this.controller.history.canUndo() || this.controller.roundOver;
-    this.doc.getElementById('btn-redo').disabled = !this.controller.history.canRedo() || this.controller.roundOver;
+    this.doc.getElementById('btn-undo').disabled = !this.controller.history.canUndo() || this.controller.roundOver || this.controller.isAITurn();
     this.doc.getElementById('btn-forfeit').disabled = this.controller.isAITurn() || this.controller.roundOver;
-    this._renderMatchStrip();
-  }
-
-  _renderMatchStrip() {
-    const strip = this.doc.getElementById('match-strip');
-    if (!strip) return;
-    const m = this.controller.match;
-    if (!m || !m.isMultiRound()) {
-      strip.classList.add('hidden');
-      strip.textContent = '';
-      return;
-    }
-    strip.classList.remove('hidden');
-    const drawSuffix = m.draws > 0 ? ` (${m.draws} draw${m.draws === 1 ? '' : 's'})` : '';
-    strip.textContent = `Best of ${m.length} — ${m.p1} ${m.scoreP1} — ${m.scoreP2} ${m.p2}${drawSuffix}`;
   }
 
   _humanCellClick(idx) {
@@ -942,13 +1070,17 @@ class UIController {
     if (!this.controller.board.isValidMove(idx)) {
       this.audio.playInvalid();
       const cells = this.doc.querySelectorAll('.cell');
-      cells[idx].classList.add('shake');
-      setTimeout(() => cells[idx].classList.remove('shake'), 200);
-      this.doc.getElementById('status-line').textContent = 'Cell is already taken.';
+      if (cells[idx]) {
+        cells[idx].classList.add('shake');
+        setTimeout(() => cells[idx] && cells[idx].classList.remove('shake'), 250);
+      }
+      const status = this.doc.getElementById('status-line');
+      if (status) status.textContent = 'Cell is already taken — choose an empty cell.';
       return;
     }
+    const symBefore = this.controller.currentSymbol();
     const r = this.controller.applyMove(idx);
-    if (r.ok) this.audio.playMove(this.controller.symbols[this.controller.currentPlayer === 1 ? 2 : 1]);
+    if (r.ok) this.audio.playMove(symBefore);
     this._afterMove(r);
   }
 
@@ -963,10 +1095,9 @@ class UIController {
 
   _scheduleAI() {
     setTimeout(() => {
+      const symBefore = this.controller.currentSymbol();
       const r = this.controller.aiMove();
-      if (r && r.result && r.result.ok) {
-        this.audio.playMove(this.controller.symbols[this.controller.currentPlayer === 1 ? 2 : 1]);
-      }
+      if (r && r.result && r.result.ok) this.audio.playMove(symBefore);
       this._afterMove(r ? r.result : null);
     }, 200);
   }
@@ -977,27 +1108,13 @@ class UIController {
     }
   }
 
-  _handleRedo() {
-    if (this.controller.redo()) {
-      this._renderGame();
-    }
-  }
-
   _endRound(outcome) {
     if (outcome === 'draw') this.audio.playDraw();
     else this.audio.playWin();
-    const m = this.controller.match;
-    if (m && m.isMultiRound() && !m.isComplete()) {
-      // Show end-of-round panel with "Next Round"
-      this._showEndPanel(outcome, /*matchInProgress=*/true);
-    } else if (m && m.isMultiRound() && m.isComplete()) {
-      this._showMatchEnd();
-    } else {
-      this._showEndPanel(outcome, /*matchInProgress=*/false);
-    }
+    this._showEndPanel(outcome);
   }
 
-  _showEndPanel(outcome, matchInProgress) {
+  _showEndPanel(outcome) {
     const $ = id => this.doc.getElementById(id);
     let msg;
     if (outcome === 'draw') {
@@ -1012,57 +1129,8 @@ class UIController {
     const mm = String(Math.floor(dur / 60)).padStart(2, '0');
     const ss = String(Math.floor(dur % 60)).padStart(2, '0');
     $('end-stats').textContent = `Moves: ${this.controller.movesPlayed} · Duration: ${mm}:${ss}`;
-    $('btn-play-again').classList.toggle('hidden', matchInProgress);
-    $('btn-next-round').classList.toggle('hidden', !matchInProgress);
-    this._renderEndScoreboard();
+    this._renderTopPlayer();
     this._show('view-end');
-  }
-
-  _renderEndScoreboard() {
-    const wrap = this.doc.getElementById('end-scoreboard');
-    wrap.textContent = '';
-    const all = this.scoreManager.getAll();
-    const players = Object.values(all.players);
-    if (players.length === 0) { wrap.textContent = 'No scores yet.'; return; }
-    const table = this.doc.createElement('table');
-    const thead = this.doc.createElement('thead');
-    const trH = this.doc.createElement('tr');
-    ['Player', 'Wins', 'Losses', 'Draws'].forEach(h => {
-      const th = this.doc.createElement('th');
-      th.textContent = h;
-      trH.appendChild(th);
-    });
-    thead.appendChild(trH);
-    table.appendChild(thead);
-    const tbody = this.doc.createElement('tbody');
-    players.sort((a, b) => b.wins - a.wins).forEach(p => {
-      const tr = this.doc.createElement('tr');
-      [p.display_name, p.wins, p.losses, p.draws].forEach(v => {
-        const td = this.doc.createElement('td');
-        td.textContent = String(v);   // textContent — sanitisation
-        tr.appendChild(td);
-      });
-      tbody.appendChild(tr);
-    });
-    table.appendChild(tbody);
-    wrap.appendChild(table);
-  }
-
-  _showMatchEnd() {
-    const m = this.controller.match;
-    const $ = id => this.doc.getElementById(id);
-    const winner = m.winner();
-    $('match-result').textContent = winner
-      ? `🏆 ${winner} wins the match (${m.scoreP1}–${m.scoreP2})${m.draws ? ` with ${m.draws} draw${m.draws === 1 ? '' : 's'}` : ''}!`
-      : `Match drawn (${m.scoreP1}–${m.scoreP2}, ${m.draws} draw${m.draws === 1 ? '' : 's'}).`;
-    const list = $('match-rounds');
-    list.textContent = '';
-    m.rounds.forEach((r, i) => {
-      const li = this.doc.createElement('li');
-      li.textContent = `Round ${i + 1}: ${r.winner ? r.winner + ' won' : 'Draw'}`;
-      list.appendChild(li);
-    });
-    this._show('view-match-end');
   }
 
   _playAgain() {
@@ -1070,42 +1138,123 @@ class UIController {
     this._enterGame();
   }
 
-  _renderScores() {
-    const wrap = this.doc.getElementById('scores-table');
-    wrap.textContent = '';
-    const all = this.scoreManager.getAll();
-    const players = Object.values(all.players);
-    if (players.length === 0) {
-      wrap.textContent = 'No scores recorded yet.';
+  /* -------------- Stats Dashboard (FR-W22) -------------- */
+  _renderStats() {
+    const data = this.scoreManager.getAll();
+    const overview = this.doc.getElementById('stats-overview');
+    const h2hWrap = this.doc.getElementById('stats-h2h');
+    const aggregate = this.doc.getElementById('stats-aggregate');
+    const empty = this.doc.getElementById('stats-empty');
+
+    overview.textContent = '';
+    h2hWrap.textContent = '';
+    aggregate.textContent = '';
+
+    const rows = Stats.perPlayerRows(data);
+    if (rows.length === 0) {
+      empty.classList.remove('hidden');
       return;
     }
+    empty.classList.add('hidden');
+
+    // Sort
+    const sorted = Stats.sortRows(rows, this.statsSort.column, this.statsSort.asc);
+
+    // Per-player overview table
     const table = this.doc.createElement('table');
+    table.className = 'stats-table';
     const thead = this.doc.createElement('thead');
     const trH = this.doc.createElement('tr');
-    ['Player', 'Wins', 'Losses', 'Draws', 'Played'].forEach(h => {
+    const cols = [
+      { key: 'display_name', label: 'Player' },
+      { key: 'wins', label: 'Wins' },
+      { key: 'losses', label: 'Losses' },
+      { key: 'draws', label: 'Draws' },
+      { key: 'played', label: 'Played' },
+      { key: 'win_rate', label: 'Win Rate' },
+      { key: 'current_streak', label: 'Current Streak' },
+      { key: 'best_streak', label: 'Best Streak' }
+    ];
+    cols.forEach(c => {
       const th = this.doc.createElement('th');
+      th.textContent = c.label;
       th.scope = 'col';
-      th.textContent = h;
+      th.setAttribute('data-sort-key', c.key);
+      th.tabIndex = 0;
+      th.addEventListener('click', () => {
+        if (this.statsSort.column === c.key) this.statsSort.asc = !this.statsSort.asc;
+        else { this.statsSort.column = c.key; this.statsSort.asc = false; }
+        this._renderStats();
+      });
       trH.appendChild(th);
     });
     thead.appendChild(trH);
     table.appendChild(thead);
+
     const tbody = this.doc.createElement('tbody');
-    players.sort((a, b) => {
-      if (b.wins !== a.wins) return b.wins - a.wins;
-      if (a.losses !== b.losses) return a.losses - b.losses;
-      return a.display_name.localeCompare(b.display_name);
-    }).forEach(p => {
+    sorted.forEach(r => {
       const tr = this.doc.createElement('tr');
-      [p.display_name, p.wins, p.losses, p.draws, p.wins + p.losses + p.draws].forEach(v => {
+      const cells = [
+        r.display_name,
+        String(r.wins),
+        String(r.losses),
+        String(r.draws),
+        String(r.played),
+        Stats.formatWinRate(r.played, r.win_rate),
+        Stats.formatStreak(r.current_streak),
+        String(r.best_streak)
+      ];
+      cells.forEach(v => {
         const td = this.doc.createElement('td');
-        td.textContent = String(v);
+        td.textContent = v;          // textContent — XSS safe
         tr.appendChild(td);
       });
       tbody.appendChild(tr);
     });
     table.appendChild(tbody);
-    wrap.appendChild(table);
+    overview.appendChild(table);
+
+    // Head-to-head
+    const h2hRows = Stats.headToHeadRows(data);
+    if (h2hRows.length > 0) {
+      const h = this.doc.createElement('h3');
+      h.textContent = 'Head-to-Head';
+      h2hWrap.appendChild(h);
+      const t2 = this.doc.createElement('table');
+      t2.className = 'stats-table';
+      const thead2 = this.doc.createElement('thead');
+      const tr2 = this.doc.createElement('tr');
+      ['Matchup', 'A wins', 'Draws', 'B wins'].forEach(label => {
+        const th = this.doc.createElement('th');
+        th.textContent = label;
+        tr2.appendChild(th);
+      });
+      thead2.appendChild(tr2);
+      t2.appendChild(thead2);
+      const tbody2 = this.doc.createElement('tbody');
+      h2hRows.forEach(r => {
+        const tr = this.doc.createElement('tr');
+        const cells = [
+          `${r.a_name} vs ${r.b_name}`,
+          String(r.a_wins),
+          String(r.draws),
+          String(r.b_wins)
+        ];
+        cells.forEach(v => {
+          const td = this.doc.createElement('td');
+          td.textContent = v;
+          tr.appendChild(td);
+        });
+        tbody2.appendChild(tr);
+      });
+      t2.appendChild(tbody2);
+      h2hWrap.appendChild(t2);
+    }
+
+    // Aggregate
+    const agg = Stats.aggregateRounds(data);
+    aggregate.textContent =
+      `Total rounds played: ${agg.totalRounds} · Total draws: ${agg.totalDraws}`;
   }
 
   _renderTopPlayer() {
@@ -1126,7 +1275,8 @@ class UIController {
   }
 
   _confirmForfeit() {
-    this._showModal('Forfeit this round?', () => {
+    this._showModal('Forfeit this round? Your progress will not be saved as a win or loss.', () => {
+      this.controller.forfeit();
       this._show('view-menu');
     });
   }
@@ -1158,13 +1308,13 @@ class UIController {
   }
 
   _show(id) {
-    ['view-menu', 'view-difficulty', 'view-names', 'view-game', 'view-end', 'view-match-end', 'view-scores', 'view-help']
-      .forEach(v => {
-        const el = this.doc.getElementById(v);
-        if (!el) return;
-        if (v === id) el.classList.remove('hidden');
-        else el.classList.add('hidden');
-      });
+    ['view-menu', 'view-difficulty', 'view-names', 'view-game', 'view-end',
+     'view-stats', 'view-help'].forEach(v => {
+      const el = this.doc.getElementById(v);
+      if (!el) return;
+      if (v === id) el.classList.remove('hidden');
+      else el.classList.add('hidden');
+    });
     if (id === 'view-menu') this._renderTopPlayer();
   }
 }
@@ -1175,7 +1325,7 @@ class UIController {
 if (typeof document !== 'undefined' && typeof window !== 'undefined') {
   document.addEventListener('DOMContentLoaded', () => {
     try {
-      // Only auto-init when the expected DOM is present (i.e., index.html, not a bare jsdom doc).
+      // Only auto-init when the expected DOM is present.
       if (document.getElementById('view-menu')) {
         window.__ttt_ui = new UIController(document);
       }
@@ -1194,11 +1344,11 @@ if (typeof module !== 'undefined' && module.exports) {
     AI,
     ScoreManager,
     HistoryManager,
-    Match,
     GameController,
     ThemeManager,
     AudioManager,
     UIController,
+    Stats,
     createRng,
     sanitizeName,
     validateName,

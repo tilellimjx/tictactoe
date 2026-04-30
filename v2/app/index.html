@@ -7,11 +7,11 @@
   <link rel="stylesheet" href="style.css">
   <link id="theme-link" rel="stylesheet" href="themes/beach.css">
 </head>
-<body>
+<body data-theme="beach">
   <header class="topbar">
     <h1 class="title">TIC TAC TOE</h1>
     <div class="topbar-controls">
-      <button id="mute-btn" class="icon-btn" aria-label="Mute sound effects" title="Mute sound effects">🔊</button>
+      <button id="mute-btn" class="icon-btn" aria-label="Unmute sound effects" title="Mute / unmute sound effects">🔇</button>
       <div class="theme-picker" role="group" aria-label="Theme picker">
         <button class="theme-btn" data-theme-choice="beach" aria-label="Beach theme">Beach</button>
         <button class="theme-btn" data-theme-choice="mountains" aria-label="Mountains theme">Mountains</button>
@@ -28,18 +28,9 @@
         <div class="menu-buttons">
           <button id="btn-hvh" class="primary">Human vs Human</button>
           <button id="btn-hvai" class="primary">Human vs AI</button>
-          <button id="btn-scores">View Scores</button>
+          <button id="btn-stats">Stats Dashboard</button>
           <button id="btn-reset">Reset Scores</button>
           <button id="btn-help">Help / Instructions</button>
-        </div>
-        <div class="match-config">
-          <label for="match-length">Match Length:</label>
-          <select id="match-length">
-            <option value="1" selected>Single round</option>
-            <option value="3">Best of 3</option>
-            <option value="5">Best of 5</option>
-            <option value="7">Best of 7</option>
-          </select>
         </div>
         <p id="top-player" class="muted">No scores recorded yet.</p>
       </div>
@@ -62,16 +53,16 @@
     <section id="view-names" class="view hidden">
       <div class="card">
         <h2>Player Names</h2>
-        <form id="names-form">
+        <form id="names-form" novalidate>
           <div class="form-row">
             <label for="p1-name">Player 1 (X):</label>
-            <input id="p1-name" type="text" maxlength="20" value="Player 1">
-            <span class="error" id="p1-error"></span>
+            <input id="p1-name" type="text" maxlength="20" value="Player 1" pattern="[A-Za-z0-9 _-]{1,20}">
+            <span class="error" id="p1-error" aria-live="polite"></span>
           </div>
           <div class="form-row" id="p2-row">
             <label for="p2-name">Player 2 (O):</label>
-            <input id="p2-name" type="text" maxlength="20" value="Player 2">
-            <span class="error" id="p2-error"></span>
+            <input id="p2-name" type="text" maxlength="20" value="Player 2" pattern="[A-Za-z0-9 _-]{1,20}">
+            <span class="error" id="p2-error" aria-live="polite"></span>
           </div>
           <div class="menu-buttons">
             <button type="submit" id="start-game" class="primary">Start Game</button>
@@ -83,7 +74,6 @@
 
     <!-- Game View -->
     <section id="view-game" class="view hidden">
-      <div id="match-strip" class="match-strip hidden" aria-live="polite"></div>
       <div id="turn-banner" class="turn-banner" aria-live="polite">Player 1's turn (X)</div>
       <div id="board" class="board" role="grid" aria-label="Tic Tac Toe board">
         <button class="cell" role="gridcell" data-index="0" aria-label="Cell 1"></button>
@@ -98,8 +88,7 @@
       </div>
       <div id="status-line" class="status-line" aria-live="assertive"></div>
       <div class="controls-strip">
-        <button id="btn-undo" disabled>Undo</button>
-        <button id="btn-redo" disabled>Redo</button>
+        <button id="btn-undo" disabled title="Undo last move (Ctrl/Cmd+Z)">Undo</button>
         <button id="btn-forfeit">Forfeit Round</button>
         <button id="btn-menu">Return to Menu</button>
       </div>
@@ -111,34 +100,23 @@
         <h2 id="end-title">Round Over</h2>
         <p id="end-message" aria-live="polite"></p>
         <div id="end-stats" class="muted"></div>
-        <div id="end-scoreboard"></div>
         <div class="menu-buttons">
           <button id="btn-play-again" class="primary">Play Again</button>
-          <button id="btn-next-round" class="primary hidden">Next Round</button>
+          <button id="btn-end-stats">View Stats Dashboard</button>
           <button id="btn-end-menu">Return to Main Menu</button>
         </div>
       </div>
     </section>
 
-    <!-- Match Summary -->
-    <section id="view-match-end" class="view hidden">
-      <div class="card">
-        <h2>Match Complete</h2>
-        <p id="match-result" aria-live="polite"></p>
-        <ol id="match-rounds"></ol>
-        <div class="menu-buttons">
-          <button id="btn-new-match" class="primary">New Match (same settings)</button>
-          <button id="btn-match-menu">Return to Main Menu</button>
-        </div>
-      </div>
-    </section>
-
-    <!-- Scores View -->
-    <section id="view-scores" class="view hidden">
-      <div class="card">
-        <h2>Scores</h2>
-        <div id="scores-table"></div>
-        <button id="scores-back" class="link-btn">Back</button>
+    <!-- Stats Dashboard (FR-W22) -->
+    <section id="view-stats" class="view hidden">
+      <div class="card stats-card">
+        <h2>Stats Dashboard</h2>
+        <p id="stats-empty" class="muted hidden">No games played yet — finish a round to see your stats.</p>
+        <div id="stats-overview"></div>
+        <div id="stats-h2h"></div>
+        <p id="stats-aggregate" class="muted"></p>
+        <button id="stats-back" class="link-btn">Back to Menu</button>
       </div>
     </section>
 
@@ -148,12 +126,13 @@
         <h2>Help / Instructions</h2>
         <p>Get three of your symbols in a row (across, down, or diagonally) to win.</p>
         <ul>
-          <li>Click, tap, or use arrow keys + Enter to place a symbol.</li>
+          <li>Click, tap, or use number keys <kbd>1</kbd>–<kbd>9</kbd> to place a symbol (top-left = 1, bottom-right = 9).</li>
           <li><strong>Easy</strong> AI plays randomly. <strong>Medium</strong> uses simple heuristics. <strong>Hard</strong> uses Minimax and is unbeatable.</li>
-          <li><strong>Undo / Redo</strong> within a round (Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z).</li>
-          <li><strong>Match Mode</strong>: Best-of-N rounds chosen on the menu.</li>
-          <li><strong>Sound</strong>: Toggle the speaker icon to mute/unmute.</li>
-          <li><strong>Themes</strong>: Pick Beach, Mountains, or Desert at the top.</li>
+          <li><strong>Undo</strong>: Press the Undo button or <kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Cmd</kbd>+<kbd>Z</kbd> to take back the last move (in HvAI mode, both AI's and your last move are reverted).</li>
+          <li><strong>Sound</strong>: Toggle the speaker icon in the top bar. Sound is muted by default.</li>
+          <li><strong>Themes</strong>: Pick Beach, Mountains, or Desert at the top — applied immediately.</li>
+          <li><strong>Stats Dashboard</strong>: Shows wins, losses, draws, win-rate %, current streak, best streak, and head-to-head records.</li>
+          <li><strong>Forfeit</strong>: Press the Forfeit button or <kbd>Esc</kbd>. Forfeits are not recorded as wins or losses.</li>
         </ul>
         <button id="help-back" class="link-btn">Back to Menu</button>
       </div>
@@ -165,7 +144,7 @@
         <p id="modal-message"></p>
         <div class="menu-buttons">
           <button id="modal-yes" class="primary">Yes</button>
-          <button id="modal-no">No</button>
+          <button id="modal-no">Cancel</button>
         </div>
       </div>
     </div>
