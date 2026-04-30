@@ -1,0 +1,19 @@
+/* Desert theme: orange dunes + warm tan */
+:root, [data-theme="desert"] {
+  --bg-color: #f4a460;
+  --bg-image: linear-gradient(180deg, #ffb74d 0%, #ff8a65 40%, #d2a679 100%);
+  --text-color: #3d2817;
+  --accent-color: #c2410c;
+  --accent-color-2: #f59e0b;
+  --board-bg: rgba(255, 235, 205, 0.94);
+  --grid-line: #8b4513;
+  --cell-bg: #fff5e6;
+  --cell-hover: #ffe8c9;
+  --win-color: #ffb74d;
+  --x-symbol: "🌵";
+  --o-symbol: "☀️";
+  --x-fallback: "C";
+  --o-fallback: "S";
+  --x-color: #2e7d32;
+  --o-color: #e65100;
+}

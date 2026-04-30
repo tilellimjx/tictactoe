@@ -1,0 +1,17 @@
+{
+  "name": "tictactoe-v2",
+  "version": "2.0.0",
+  "description": "Tic Tac Toe v2 — vanilla HTML/CSS/JS web edition.",
+  "private": true,
+  "scripts": {
+    "test": "jest"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0"
+  },
+  "jest": {
+    "testEnvironment": "jsdom",
+    "testMatch": ["**/tests/**/*.test.js"]
+  }
+}

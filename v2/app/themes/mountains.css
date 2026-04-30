@@ -1,0 +1,19 @@
+/* Mountains theme: cool blues + snowy whites */
+:root, [data-theme="mountains"] {
+  --bg-color: #d6e4f0;
+  --bg-image: linear-gradient(180deg, #4a6fa5 0%, #94b4d4 60%, #f0f6fb 100%);
+  --text-color: #1a2a3a;
+  --accent-color: #2e5984;
+  --accent-color-2: #5a7a9a;
+  --board-bg: rgba(240, 246, 251, 0.94);
+  --grid-line: #2e5984;
+  --cell-bg: #ffffff;
+  --cell-hover: #e8f0f8;
+  --win-color: #a8d8f0;
+  --x-symbol: "🏔️";
+  --o-symbol: "🌲";
+  --x-fallback: "M";
+  --o-fallback: "T";
+  --x-color: #1a3a5c;
+  --o-color: #2e7d32;
+}

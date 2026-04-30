@@ -1,0 +1,19 @@
+/* Beach theme: warm yellows + ocean blues */
+:root, [data-theme="beach"] {
+  --bg-color: #ffe9b3;
+  --bg-image: linear-gradient(180deg, #87ceeb 0%, #87ceeb 50%, #f5deb3 50%, #ffe4a1 100%);
+  --text-color: #2d2d2d;
+  --accent-color: #0277bd;
+  --accent-color-2: #ffb300;
+  --board-bg: rgba(255, 248, 220, 0.92);
+  --grid-line: #b8860b;
+  --cell-bg: #fff8dc;
+  --cell-hover: #fdf5d4;
+  --win-color: #ffd54f;
+  --x-symbol: "🌊";
+  --o-symbol: "🏖️";
+  --x-fallback: "B";
+  --o-fallback: "M";
+  --x-color: #0277bd;
+  --o-color: #f57c00;
+}
