@@ -1,0 +1,153 @@
+name: V2 Pipeline
+
+# Trigger on pushes to the v2 branch (when agent files change)
+# or manually from the GitHub Actions UI.
+on:
+  workflow_dispatch:
+    inputs:
+      skip_requirements:
+        description: "Skip requirements agent (reuse existing v2_requirements.md)"
+        type: boolean
+        default: false
+      skip_coding:
+        description: "Skip coding agent (reuse existing v2/app/ code)"
+        type: boolean
+        default: false
+      max_fix_iterations:
+        description: "Max test-fix iterations (default 5)"
+        type: string
+        default: "5"
+
+  push:
+    branches: [v2]
+    paths:
+      - "v2/agents/**"
+      - ".github/workflows/v2_pipeline.yml"
+
+jobs:
+  v2-pipeline:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to commit generated files back to v2
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+    steps:
+      # ── Checkout v2 branch ─────────────────────────────────────────────────
+      - name: Checkout v2 branch
+        uses: actions/checkout@v4
+        with:
+          ref: v2
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── Python setup ───────────────────────────────────────────────────────
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install Python dependencies
+        run: pip install anthropic
+
+      # ── Node.js setup (for Jest tests) ─────────────────────────────────────
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # ── Notify pipeline start ──────────────────────────────────────────────
+      - name: Notify pipeline start
+        run: |
+          python - <<'EOF'
+          import sys; sys.path.insert(0, "v2/agents")
+          from slack_utils import notify
+          notify("*V2 Pipeline* | GitHub Actions run started. :construction:", ":rocket:")
+          EOF
+
+      # ── Requirements agent ─────────────────────────────────────────────────
+      - name: Run requirements agent
+        if: ${{ !inputs.skip_requirements }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python v2/agents/requirements_agent.py
+
+      - name: Notify requirements skipped
+        if: ${{ inputs.skip_requirements }}
+        run: |
+          python - <<'EOF'
+          import sys; sys.path.insert(0, "v2/agents")
+          from slack_utils import progress
+          progress("Requirements agent skipped (reusing existing v2_requirements.md).")
+          EOF
+
+      # ── Coding agent ───────────────────────────────────────────────────────
+      - name: Run coding agent
+        if: ${{ !inputs.skip_coding }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python v2/agents/coding_agent.py
+
+      - name: Notify coding skipped
+        if: ${{ inputs.skip_coding }}
+        run: |
+          python - <<'EOF'
+          import sys; sys.path.insert(0, "v2/agents")
+          from slack_utils import progress
+          progress("Coding agent skipped (reusing existing v2/app/ code).")
+          EOF
+
+      # ── Testing agent (includes fix loop) ─────────────────────────────────
+      - name: Run testing agent
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          MAX_FIX_ITERATIONS: ${{ inputs.max_fix_iterations || '5' }}
+        run: python v2/agents/testing_agent.py
+
+      # ── Upload all generated artefacts ─────────────────────────────────────
+      - name: Upload artefacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v2-generated-files
+          path: |
+            v2/requirements/
+            v2/app/
+            v2/tests/
+            v2/package.json
+            v2/package-lock.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+      # ── Commit generated files back to v2 ─────────────────────────────────
+      - name: Commit generated files
+        if: always()
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Stage generated output (requirements, app, tests, npm files)
+          git add v2/requirements/ v2/app/ v2/tests/ v2/package.json v2/package-lock.json 2>/dev/null || true
+          echo "--- git status ---"
+          git status --short
+          if git diff --cached --quiet; then
+            echo "Nothing to commit."
+          else
+            git commit -m "chore: v2 pipeline output [skip ci]"
+            git push origin v2
+          fi
+
+      # ── Final failure notification (always runs if any step failed) ────────
+      - name: Notify pipeline failure
+        if: failure()
+        run: |
+          python - <<'EOF'
+          import sys; sys.path.insert(0, "v2/agents")
+          from slack_utils import critical
+          critical(
+              "GitHub Actions Pipeline",
+              "The V2 pipeline failed unexpectedly. "
+              "Check the GitHub Actions run log for details: "
+              "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          )
+          EOF
