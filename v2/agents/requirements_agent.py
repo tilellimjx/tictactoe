@@ -83,18 +83,18 @@ def main() -> None:
 
     start("Requirements Agent")
 
-    v1_content = v1_req_path.read_text(encoding="utf-8")
-    v2_input = v2_input_path.read_text(encoding="utf-8")
-
     initial_message = (
         "Create the V2 requirements specification.\n\n"
-        f"Output file: v2/requirements/v2_requirements.md\n\n"
-        "=== V1 REQUIREMENTS (requirements_final.md) ===\n\n"
-        f"{v1_content}\n\n"
-        "=== V2 ENHANCEMENT REQUEST (V2 requirements.txt) ===\n\n"
-        f"{v2_input}\n\n"
-        "List the project directory first, then write the complete V2 spec. "
-        "Choose three specific new web features, justify each, and document all requirements fully."
+        "Steps — follow in order:\n"
+        "  1. Use read_file to read: requirements/requirements_final.md\n"
+        "  2. Use read_file to read: v2/v2_input.txt\n"
+        "  3. Draft the complete V2 spec in your head.\n"
+        "  4. Use write_file to save it to: v2/requirements/v2_requirements.md\n\n"
+        "IMPORTANT: you MUST call write_file to save the output — do not output the spec "
+        "as plain text only. The pipeline checks for the file on disk.\n\n"
+        "The spec must be a complete, self-contained Markdown document following the same "
+        "section structure as the V1 spec (Overview, Functional Requirements, Non-Functional "
+        "Requirements, UI Requirements, Technical Requirements, Testing Requirements)."
     )
 
     try:
@@ -105,7 +105,7 @@ def main() -> None:
             initial_message=initial_message,
             tools=TOOLS_DEV,
             work_dir=work_dir,
-            max_tokens=16384,
+            max_tokens=32000,
             max_iterations=max_iterations,
         )
     except Exception as exc:
