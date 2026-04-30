@@ -1,0 +1,12 @@
+Read this whole document before acting. Read requirements_final.md to understand what the requirements were for the first version of tic tac toe. Go through the code to see what was done. Create a branch off the master in the repo called v2 so all the changes wanted here will be separated from the original. Everything that will be done will be done in the cloud using GitHub actions. Create all necessary files for this to happen. Create all AI agents before invoking any commands. All the files created should be placed in appropriately named folders for readability. If necessary, the files can be checked into the repo so they can be acted upon when needed. 
+Have the process send notifications and progress through Slack.
+The webhook URL is stored in the SLACK_WEBHOOK_URL GitHub Actions secret.
+All actions will be done without intervention. Update the tic tac toe app with the following enhancements:
+1. Change the game from a console application to a web site that can be ran by double clicking on the main page. 
+2. Create three themes the user can choose from: Beach, Mountains, Desert. Each of these themes will change the background image and the symbols for X and O.
+3. Create 3 new features that were not in the first version.
+Have an AI agent that will create the v2 requirements spec that will contain everything from final_requirements.md that is still accurate for v2 plus the added requirements from above.
+Once finished, a different agent will write all the code and create all the unit tests for the project.
+Have a test agent run all the tests. Any failures should be documented and the coding agent should be used to fix the errors. The coding and test agents should repeat this process until there are no more bugs.
+Once completed, if necessary, the code should be finalized to be ran by a human. If there are any critical errors that cannot allow this process to finish, a detailed notification should be sent to the slack notification so a human can intervene.
+

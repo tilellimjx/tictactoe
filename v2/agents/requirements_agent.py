@@ -64,7 +64,7 @@ def main() -> None:
 
     work_dir = work_dir_from_env(str(Path(__file__).resolve().parent.parent.parent))
     v1_req_path = work_dir / "requirements" / "requirements_final.md"
-    v2_input_path = work_dir / "V2 requirements.txt"
+    v2_input_path = work_dir / "v2" / "v2_input.txt"
     output_path = work_dir / "v2" / "requirements" / "v2_requirements.md"
     max_iterations = int(__import__("os").environ.get("MAX_ITERATIONS", "10"))
 
